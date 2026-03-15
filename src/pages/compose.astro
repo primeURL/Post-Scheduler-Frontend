@@ -1,0 +1,14 @@
+---
+import Layout from "../layouts/Layout.astro";
+import AuthInit from "../components/AuthInit";
+import PostComposer from "../components/PostComposer";
+---
+
+<Layout title="Compose — Post Scheduler">
+  <!-- Auth guard: reads access_token cookie, redirects to /login if missing -->
+  <AuthInit client:only="react" />
+
+  <main class="min-h-screen px-4 py-16">
+    <PostComposer client:only="react" />
+  </main>
+</Layout>

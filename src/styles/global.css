@@ -1,0 +1,83 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Martian+Mono:wght@300;400;500&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Syne", system-ui, sans-serif;
+  --font-mono: "Martian Mono", monospace;
+
+  --color-ink:      #0A0C10;
+  --color-surface:  #11141C;
+  --color-elevated: #1A1D28;
+  --color-border:   #252B3C;
+  --color-cream:    #DED9CE;
+  --color-muted:    #545B73;
+  --color-accent:   #8B97FF;
+  --color-amber:    #F0A850;
+  --color-danger:   #F07050;
+  --color-success:  #4ECC80;
+
+  --animate-fade-up: fadeUp 0.2s ease-out both;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+    background-color: #0A0C10;
+    color: #DED9CE;
+    font-family: "Syne", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Subtle grid texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(139, 151, 255, 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(139, 151, 255, 0.025) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Accent glow at top */
+  body::after {
+    content: '';
+    position: fixed;
+    top: -300px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 800px;
+    height: 500px;
+    background: radial-gradient(ellipse, rgba(139, 151, 255, 0.07) 0%, transparent 65%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Remove default textarea/input appearance */
+  textarea, input {
+    font-family: inherit;
+    outline: none;
+    border: none;
+    background: transparent;
+    color: inherit;
+    resize: none;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar        { width: 4px; }
+  ::-webkit-scrollbar-track  { background: #11141C; }
+  ::-webkit-scrollbar-thumb  { background: #252B3C; border-radius: 2px; }
+}

@@ -1,0 +1,13 @@
+---
+import Layout from "../layouts/Layout.astro";
+import AuthInit from "../components/AuthInit";
+import ContentCalendar from "../components/ContentCalendar";
+---
+
+<Layout title="Calendar — Post Scheduler">
+  <AuthInit client:only="react" />
+
+  <main class="min-h-screen px-4 py-12">
+    <ContentCalendar client:only="react" />
+  </main>
+</Layout>
