@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useStore } from "@nanostores/react";
 import { $user } from "../stores/auth";
 import { api } from "../lib/api";
-import type { Post, PostStatus } from "../lib/types";
+import type { DownloadUrlResponse, Post, PostAnalytics, PostStatus } from "../lib/types";
+import SchedulePickerModal from "./SchedulePickerModal";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -236,28 +237,21 @@ function DayCell({
 function PostCard({
   post,
   onDelete,
+  onOpen,
 }: {
   post: Post;
-  onDelete: (id: string) => void;
+  onDelete: (post: Post) => void;
+  onOpen: (post: Post) => void;
 }) {
-  const [deleting, setDeleting] = useState(false);
   const [hoverDel, setHoverDel] = useState(false);
 
   const dateIso = post.scheduled_for ?? post.published_at ?? null;
 
-  const handleDelete = async () => {
-    if (!confirm("Delete this post? This cannot be undone.")) return;
-    setDeleting(true);
-    try {
-      await api.delete(`/posts/${post.id}`);
-      onDelete(post.id);
-    } catch {
-      setDeleting(false);
-    }
-  };
+  const handleDelete = () => onDelete(post);
 
   return (
     <div
+      onClick={() => onOpen(post)}
       style={{
         padding: "12px 14px",
         borderRadius: 12,
@@ -265,6 +259,7 @@ function PostCard({
         border: "1px solid var(--color-border)",
         marginBottom: 8,
         animation: "var(--animate-fade-up)",
+        cursor: "pointer",
       }}
     >
       {/* Status + time + delete row */}
@@ -308,14 +303,16 @@ function PostCard({
 
         {DELETABLE.includes(post.status) && (
           <button
-            onClick={handleDelete}
-            disabled={deleting}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDelete();
+            }}
             onMouseEnter={() => setHoverDel(true)}
             onMouseLeave={() => setHoverDel(false)}
             style={{
               background: "transparent",
               border: "none",
-              cursor: deleting ? "wait" : "pointer",
+              cursor: "pointer",
               color: hoverDel ? "var(--color-danger)" : "var(--color-muted)",
               padding: 4,
               borderRadius: 4,
@@ -415,6 +412,17 @@ export default function ContentCalendar() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Post | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [detailPostId, setDetailPostId] = useState<string | null>(null);
+  const [detailPost, setDetailPost] = useState<Post | null>(null);
+  const [detailQuoteSourcePost, setDetailQuoteSourcePost] = useState<Post | null>(null);
+  const [detailAnalytics, setDetailAnalytics] = useState<PostAnalytics[]>([]);
+  const [detailMediaUrls, setDetailMediaUrls] = useState<Record<string, string>>({});
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailActiveMediaIndex, setDetailActiveMediaIndex] = useState(0);
+  const [scheduleTargetPostId, setScheduleTargetPostId] = useState<string | null>(null);
 
   const fetchPosts = useCallback(async () => {
     setLoading(true);
@@ -488,8 +496,125 @@ export default function ContentCalendar() {
       })
     : [];
 
-  const handleDelete = (id: string) => {
-    setPosts((prev) => prev.filter((p) => p.id !== id));
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/posts/${deleteTarget.id}`);
+      setPosts((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch {
+      // silent
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const openDetail = async (postId: string) => {
+    setDetailPostId(postId);
+    setDetailLoading(true);
+    setDetailError(null);
+    try {
+      const [postData, analyticsData] = await Promise.all([
+        api.get<Post>(`/posts/${postId}?include_deleted=true`),
+        api.get<PostAnalytics[]>(`/analytics/posts/${postId}`).catch(() => []),
+      ]);
+      const signedEntries = await Promise.all(
+        (postData.media ?? [])
+          .filter((m) => !!m.key)
+          .map(async (m) => {
+            const res = await api.get<DownloadUrlResponse>(`/storage/download-url?file_key=${encodeURIComponent(m.key)}`);
+            return [m.key, res.download_url] as const;
+          })
+      );
+
+      setDetailPost(postData);
+      setDetailAnalytics(analyticsData);
+      setDetailMediaUrls(Object.fromEntries(signedEntries));
+      setDetailActiveMediaIndex(0);
+      if (postData.quote_of_platform_post_id) {
+        const sourcePost = await api
+          .get<Post>(`/posts/by-platform-id/${encodeURIComponent(postData.quote_of_platform_post_id)}?include_deleted=true`)
+          .catch(() => null);
+        setDetailQuoteSourcePost(sourcePost);
+      } else {
+        setDetailQuoteSourcePost(null);
+      }
+    } catch (e) {
+      setDetailError(e instanceof Error ? e.message : "Failed to load post details");
+      setDetailPost(null);
+      setDetailQuoteSourcePost(null);
+      setDetailAnalytics([]);
+      setDetailMediaUrls({});
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const closeDetail = () => {
+    setDetailPostId(null);
+    setDetailPost(null);
+    setDetailQuoteSourcePost(null);
+    setDetailAnalytics([]);
+    setDetailMediaUrls({});
+    setDetailError(null);
+  };
+
+  const detailLatest = detailAnalytics[detailAnalytics.length - 1] ?? null;
+  const detailMedia = detailPost?.media ?? [];
+  const detailCurrentMedia = detailMedia[detailActiveMediaIndex] ?? null;
+  const detailCurrentSrc = detailCurrentMedia ? (detailMediaUrls[detailCurrentMedia.key] ?? detailCurrentMedia.public_url) : null;
+
+  const refreshDetail = async () => {
+    if (!detailPostId) return;
+    await openDetail(detailPostId);
+  };
+
+  const actionRepost = async () => {
+    if (!detailPost) return;
+    await api.post(`/posts/${detailPost.id}/repost`, {});
+    await refreshDetail();
+    await fetchPosts();
+  };
+
+  const actionRefreshAnalytics = async () => {
+    if (!detailPost) return;
+    await api.post(`/analytics/posts/${detailPost.id}/refresh`, {});
+    await refreshDetail();
+    await fetchPosts();
+  };
+
+  const actionQuote = async () => {
+    if (!detailPost) return;
+    const sourcePost = detailPost;
+    closeDetail();
+    const text = window.prompt("Quote text:");
+    if (!text || !text.trim()) return;
+    await api.post(`/posts/${sourcePost.id}/quote`, { content: text.trim(), scheduled_for: null, media: null });
+    await refreshDetail();
+    await fetchPosts();
+  };
+
+  const actionEditContent = async () => {
+    if (!detailPost) return;
+    const nextText = window.prompt("Edit content:", detailPost.content);
+    if (!nextText || !nextText.trim()) return;
+    await api.patch(`/posts/${detailPost.id}`, { content: nextText.trim() });
+    await refreshDetail();
+    await fetchPosts();
+  };
+
+  const actionDeleteFromDetail = async () => {
+    if (!detailPost) return;
+    setDeleteTarget(detailPost);
+  };
+
+  const openPostFromCalendar = (post: Post) => {
+    if (post.status === "draft" && !post.is_deleted) {
+      window.location.href = `/compose?draft_post_id=${encodeURIComponent(post.id)}`;
+      return;
+    }
+    void openDetail(post.id);
   };
 
   // Compose link — pre-fill date if a day is selected
@@ -503,6 +628,232 @@ export default function ContentCalendar() {
       className="w-full max-w-5xl mx-auto px-4 py-8"
       style={{ animation: "var(--animate-fade-up)" }}
     >
+      {scheduleTargetPostId && (
+        <SchedulePickerModal
+          initialISO={detailPost?.scheduled_for ?? null}
+          onClose={() => setScheduleTargetPostId(null)}
+          onConfirm={async (localIso) => {
+            await api.patch(`/posts/${scheduleTargetPostId}`, {
+              scheduled_for: new Date(localIso).toISOString(),
+            });
+            setScheduleTargetPostId(null);
+            await refreshDetail();
+            await fetchPosts();
+          }}
+        />
+      )}
+
+      {detailPostId && (
+        <div
+          onClick={closeDetail}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 75,
+            background: "rgba(2, 6, 14, 0.75)",
+            backdropFilter: "blur(8px)",
+            display: "grid",
+            placeItems: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "min(980px, 100%)",
+              maxHeight: "88vh",
+              overflowY: "auto",
+              borderRadius: 18,
+              border: "1px solid var(--color-border)",
+              background: "linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 92%, #000), var(--color-surface))",
+              padding: 16,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <h3 style={{ margin: 0, color: "var(--color-cream)", fontFamily: "var(--font-sans)", fontSize: 28 }}>Post Details</h3>
+              <button onClick={closeDetail} style={{ border: "none", background: "transparent", color: "var(--color-cream)", fontSize: 28, lineHeight: 1 }}>×</button>
+            </div>
+
+            {detailLoading && <p style={{ color: "var(--color-muted)", fontFamily: "var(--font-mono)", fontSize: 13 }}>Loading post details...</p>}
+            {detailError && <p style={{ color: "var(--color-danger)", fontFamily: "var(--font-mono)", fontSize: 13 }}>{detailError}</p>}
+
+            {detailPost && (
+              <>
+                <div style={{ border: "1px solid var(--color-border)", borderRadius: 14, padding: 14, background: "color-mix(in srgb, var(--color-ink) 18%, transparent)" }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+                    <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--color-muted)", textTransform: "uppercase" }}>{detailPost.status}</span>
+                    {detailPost.scheduled_for && <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--color-accent)" }}>Scheduled {new Date(detailPost.scheduled_for).toLocaleString()}</span>}
+                    {detailPost.published_at && <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--color-success)" }}>Published {new Date(detailPost.published_at).toLocaleString()}</span>}
+                  </div>
+                  <p style={{ margin: 0, color: "var(--color-cream)", fontSize: 22, lineHeight: 1.3, fontFamily: "var(--font-sans)", whiteSpace: "pre-wrap" }}>
+                    {detailPost.content}
+                  </p>
+
+                  {detailQuoteSourcePost && (
+                    <div
+                      style={{
+                        marginTop: 12,
+                        borderRadius: 12,
+                        border: "1px solid color-mix(in srgb, var(--color-accent) 35%, var(--color-border))",
+                        background: "color-mix(in srgb, var(--color-ink) 28%, transparent)",
+                        padding: 12,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 10,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.08em",
+                          color: "var(--color-accent)",
+                          fontFamily: "var(--font-mono)",
+                          marginBottom: 6,
+                        }}
+                      >
+                        Original post
+                      </div>
+                      <p
+                        style={{
+                          margin: 0,
+                          color: "var(--color-cream)",
+                          fontSize: 16,
+                          lineHeight: 1.35,
+                          fontFamily: "var(--font-sans)",
+                          whiteSpace: "pre-wrap",
+                        }}
+                      >
+                        {detailQuoteSourcePost.content}
+                      </p>
+                    </div>
+                  )}
+
+                  {!!detailMedia.length && (
+                    <div style={{ marginTop: 12 }}>
+                      {detailCurrentMedia && (
+                        <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid var(--color-border)", background: "#000", position: "relative" }}>
+                          {detailCurrentMedia.content_type?.startsWith("video/") ? (
+                            <video controls src={detailCurrentSrc ?? undefined} style={{ width: "100%", maxHeight: 420, objectFit: "contain" }} />
+                          ) : (
+                            <img src={detailCurrentSrc ?? undefined} alt={detailCurrentMedia.file_name ?? "Post media"} style={{ width: "100%", maxHeight: 420, objectFit: "contain" }} />
+                          )}
+
+                          {detailMedia.length > 1 && (
+                            <>
+                              <button onClick={() => setDetailActiveMediaIndex((i) => (i - 1 + detailMedia.length) % detailMedia.length)} style={{ position: "absolute", top: "50%", left: 8, transform: "translateY(-50%)", border: "1px solid var(--color-border)", background: "rgba(9,13,22,0.7)", color: "var(--color-cream)", width: 34, height: 34, borderRadius: 999, fontSize: 20, lineHeight: 1 }}>‹</button>
+                              <button onClick={() => setDetailActiveMediaIndex((i) => (i + 1) % detailMedia.length)} style={{ position: "absolute", top: "50%", right: 8, transform: "translateY(-50%)", border: "1px solid var(--color-border)", background: "rgba(9,13,22,0.7)", color: "var(--color-cream)", width: 34, height: 34, borderRadius: 999, fontSize: 20, lineHeight: 1 }}>›</button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  <button onClick={refreshDetail} style={calendarDetailButton(false)}>Reload</button>
+                  {detailPost.status === "published" && !detailPost.is_deleted && <button onClick={() => { void actionRefreshAnalytics(); }} style={calendarDetailButton(false)}>Refresh now</button>}
+                  {detailPost.status === "published" && !detailPost.is_deleted && <button onClick={() => { void actionRepost(); }} style={calendarDetailButton(false)}>{detailPost.reposted_at ? "Undo repost" : "Repost"}</button>}
+                  {detailPost.status === "published" && !detailPost.is_deleted && <button onClick={() => { void actionQuote(); }} style={calendarDetailButton(false)}>Quote</button>}
+                  {detailPost.status === "scheduled" && !detailPost.is_deleted && <button onClick={() => { void actionEditContent(); }} style={calendarDetailButton(false)}>Edit content</button>}
+                  {detailPost.status === "scheduled" && !detailPost.is_deleted && <button onClick={() => setScheduleTargetPostId(detailPost.id)} style={calendarDetailButton(false)}>Change time</button>}
+                  <button onClick={() => { void actionDeleteFromDetail(); }} style={calendarDetailButton(detailPost.is_deleted)}>Delete</button>
+                </div>
+
+                <div style={{ marginTop: 12, border: "1px solid var(--color-border)", borderRadius: 14, padding: 12, background: "color-mix(in srgb, var(--color-elevated) 90%, transparent)" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 10 }}>
+                    {[
+                      { label: "Impressions", value: detailLatest?.impressions ?? 0 },
+                      { label: "Likes", value: detailLatest?.likes ?? 0 },
+                      { label: "Reposts", value: detailLatest?.retweets ?? 0 },
+                      { label: "Replies", value: detailLatest?.replies ?? 0 },
+                      { label: "Quoted", value: detailLatest?.quoted_count ?? 0 },
+                      { label: "Bookmarks", value: detailLatest?.bookmarks ?? 0 },
+                    ].map((metric) => (
+                      <div key={metric.label} style={{ border: "1px solid var(--color-border)", borderRadius: 10, padding: "8px 10px", background: "color-mix(in srgb, var(--color-ink) 18%, transparent)" }}>
+                        <div style={{ fontSize: 10, color: "var(--color-muted)", fontFamily: "var(--font-mono)", textTransform: "uppercase" }}>{metric.label}</div>
+                        <div style={{ marginTop: 4, fontSize: 21, color: "var(--color-cream)", fontFamily: "var(--font-mono)", fontWeight: 700 }}>{metric.value.toLocaleString()}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div
+          onClick={() => !deleting && setDeleteTarget(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 70,
+            background: "rgba(2, 6, 14, 0.72)",
+            backdropFilter: "blur(6px)",
+            display: "grid",
+            placeItems: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "min(620px, 100%)",
+              borderRadius: 16,
+              border: "1px solid var(--color-border)",
+              background: "var(--color-surface)",
+              padding: 16,
+            }}
+          >
+            <h3 style={{ margin: 0, color: "var(--color-cream)", fontFamily: "var(--font-sans)", fontSize: 24 }}>
+              Delete this post?
+            </h3>
+            <p style={{ marginTop: 8, marginBottom: 0, color: "var(--color-muted)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+              This post will be marked as deleted and hidden from active views.
+            </p>
+            <p style={{ marginTop: 10, color: "var(--color-cream)", fontFamily: "var(--font-sans)", fontSize: 18 }}>
+              {deleteTarget.content.slice(0, 120)}
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                style={{
+                  borderRadius: 999,
+                  border: "1px solid var(--color-border)",
+                  background: "transparent",
+                  color: "var(--color-cream)",
+                  padding: "8px 14px",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 12,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  void confirmDelete();
+                }}
+                disabled={deleting}
+                style={{
+                  borderRadius: 999,
+                  border: "none",
+                  background: "var(--color-danger)",
+                  color: "#10141b",
+                  padding: "8px 16px",
+                  fontFamily: "var(--font-sans)",
+                  fontWeight: 700,
+                  fontSize: 15,
+                  opacity: deleting ? 0.6 : 1,
+                }}
+              >
+                {deleting ? "Deleting..." : "Yes, delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Header ────────────────────────────────────────────────────── */}
       <div
         style={{
@@ -769,7 +1120,7 @@ export default function ContentCalendar() {
               </div>
             ) : (
               selectedPosts.map((post) => (
-                <PostCard key={post.id} post={post} onDelete={handleDelete} />
+                <PostCard key={post.id} post={post} onDelete={setDeleteTarget} onOpen={openPostFromCalendar} />
               ))
             )}
           </div>
@@ -777,4 +1128,17 @@ export default function ContentCalendar() {
       </div>
     </div>
   );
+}
+
+function calendarDetailButton(disabled: boolean): React.CSSProperties {
+  return {
+    borderRadius: 999,
+    border: "1px solid var(--color-border)",
+    background: "transparent",
+    color: "var(--color-cream)",
+    padding: "8px 12px",
+    fontFamily: "var(--font-mono)",
+    fontSize: 12,
+    opacity: disabled ? 0.45 : 1,
+  };
 }

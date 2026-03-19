@@ -1,13 +1,10 @@
 ---
-import Layout from "../layouts/Layout.astro";
-import AuthInit from "../components/AuthInit";
+import AppLayout from "../layouts/AppLayout.astro";
 import AnalyticsDashboard from "../components/AnalyticsDashboard";
 ---
 
-<Layout title="Analytics — Post Scheduler">
-  <AuthInit client:only="react" />
-
-  <main class="min-h-screen px-4 py-12">
+<AppLayout title="Analytics — Post Scheduler">
+  <div class="p-6">
     <AnalyticsDashboard client:only="react" />
-  </main>
-</Layout>
+  </div>
+</AppLayout>

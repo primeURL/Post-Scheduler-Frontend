@@ -1,0 +1,10 @@
+---
+import AppLayout from "../layouts/AppLayout.astro";
+import DashboardOverview from "../components/DashboardOverview";
+---
+
+<AppLayout title="Dashboard — Post Scheduler">
+  <div class="p-6">
+    <DashboardOverview client:only="react" />
+  </div>
+</AppLayout>

@@ -1,0 +1,85 @@
+---
+import { ClientRouter } from "astro:transitions";
+import Sidebar from "../components/Sidebar";
+import HeaderUser from "../components/HeaderUser";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = "Post Scheduler",
+  description = "Schedule your X posts with precision.",
+} = Astro.props;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="description" content={description} />
+    <title>{title}</title>
+    <ClientRouter />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="app">
+    <div class="flex h-screen overflow-hidden">
+
+      <!-- Collapsible sidebar -->
+      <Sidebar client:only="react" transition:persist />
+
+      <!-- Right: header + scrollable content -->
+      <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
+
+        <!-- Top header -->
+        <header class="flex items-center justify-between border-b border-border bg-surface px-6 py-3 shrink-0">
+          <div class="hidden md:flex">
+            <label class="relative flex items-center">
+              <span class="material-symbols-outlined absolute left-3 text-muted" style="font-size:18px;">search</span>
+              <input
+                class="h-9 w-64 rounded-lg border border-border bg-ink/60 pl-10 text-sm text-cream placeholder-muted focus:outline-none focus:ring-1 focus:ring-primary/60"
+                placeholder="Search posts, assets..."
+              />
+            </label>
+          </div>
+          <!-- On small screens show a spacer so right icons stay flush -->
+          <div class="md:hidden"></div>
+
+          <div class="flex items-center gap-3">
+            <button
+              class="flex size-9 items-center justify-center rounded-lg border border-border bg-elevated text-muted hover:text-cream hover:border-accent/40 transition-colors"
+              title="Notifications"
+            >
+              <span class="material-symbols-outlined" style="font-size:20px;">notifications</span>
+            </button>
+            <button
+              class="flex size-9 items-center justify-center rounded-lg border border-border bg-elevated text-muted hover:text-cream hover:border-accent/40 transition-colors"
+              title="Settings"
+            >
+              <span class="material-symbols-outlined" style="font-size:20px;">settings</span>
+            </button>
+            <HeaderUser client:only="react" />
+          </div>
+        </header>
+
+        <!-- Page content -->
+        <main class="flex-1 overflow-y-auto">
+          <slot />
+        </main>
+
+      </div>
+    </div>
+  </body>
+</html>
+
+<style is:global>
+  @import "../styles/global.css";
+</style>

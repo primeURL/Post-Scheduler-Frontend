@@ -1,37 +1,71 @@
 import { useEffect } from "react";
-import { setAuth, clearAuth } from "../stores/auth";
+import { setAuth, clearAuth, $accessToken } from "../stores/auth";
 import { api } from "../lib/api";
 import type { User } from "../lib/types";
 
-/** Reads the access_token cookie set by the backend OAuth callback,
- *  stores it in the auth nanostore, and fetches the current user.
- *  Redirects to /login if auth is missing or invalid.
- *
- *  TODO: re-enable the auth check when Google OAuth is configured.
+const API_BASE = import.meta.env.PUBLIC_API_URL ?? "http://localhost:8000";
+
+function getCsrfToken(): string | null {
+  return (
+    document.cookie
+      .split("; ")
+      .find((c) => c.startsWith("csrf_token="))
+      ?.split("=")[1] ?? null
+  );
+}
+
+async function tryRefresh(): Promise<string | null> {
+  const csrf = getCsrfToken();
+  if (!csrf) return null;
+  const resp = await fetch(`${API_BASE}/auth/refresh`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "X-CSRF-Token": csrf },
+  });
+  if (!resp.ok) return null;
+  const data = (await resp.json()) as { access_token?: string };
+  return data.access_token ?? null;
+}
+
+/** Restores auth state on every page load.
+ *  Checks the in-memory nanostore, then falls back to /auth/refresh (via
+ *  the httpOnly refresh_token cookie). Redirects to /login if unauthenticated.
  */
 export default function AuthInit() {
   useEffect(() => {
-    const tokenCookie = document.cookie
-      .split("; ")
-      .find((c) => c.startsWith("access_token="));
+    (async () => {
+      let token = $accessToken.get();
 
-    const token = tokenCookie?.split("=")[1];
+      if (!token) {
+        token = await tryRefresh();
+        if (!token) {
+          clearAuth();
+          window.location.href = "/login";
+          return;
+        }
+        $accessToken.set(token);
+      }
 
-    // Bypass auth guard — remove this block when Google OAuth is set up
-    if (!token) return;
-
-    import("../stores/auth").then(({ $accessToken }) => {
-      $accessToken.set(token);
-    });
-
-    api
-      .get<User>("/auth/me")
-      .then((user) => setAuth(token, user))
-      .catch(() => {
-        clearAuth();
-        // TODO: redirect to /login once auth is configured
-        // window.location.href = "/login";
-      });
+      try {
+        const user = await api.get<User>("/auth/me");
+        setAuth(token, user);
+      } catch {
+        const refreshed = await tryRefresh();
+        if (!refreshed) {
+          clearAuth();
+          window.location.href = "/login";
+          return;
+        }
+        $accessToken.set(refreshed);
+        try {
+          const user = await api.get<User>("/auth/me");
+          setAuth(refreshed, user);
+        } catch {
+          clearAuth();
+          window.location.href = "/login";
+        }
+      }
+    })();
   }, []);
 
   return null;

@@ -1,0 +1,117 @@
+---
+interface Props {
+  title?: string;
+  description?: string;
+  image?: string;
+  canonical?: string;
+  noindex?: boolean;
+}
+
+const {
+  title = "Post Scheduler — Master Your Social Presence",
+  description = "X-first social media scheduling for modern creators. Build, schedule, and track X threads with cinematic precision and deep analytics.",
+  image = "/og-image.png",
+  canonical = Astro.url.href,
+  noindex = false,
+} = Astro.props;
+
+const siteUrl  = "https://postscheduler.app";
+const siteName = "Post Scheduler";
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": siteName,
+  "url": siteUrl,
+  "description": description,
+  "applicationCategory": "SocialNetworkingApplication",
+  "operatingSystem": "Web",
+  "browserRequirements": "Requires JavaScript",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "featureList": [
+    "X (Twitter) thread scheduling",
+    "Visual content calendar",
+    "Post analytics dashboard",
+    "Multi-tweet thread composer",
+  ],
+};
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content={Astro.generator} />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" />
+
+    <!-- Primary SEO -->
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    {noindex && <meta name="robots" content="noindex,nofollow" />}
+
+    <!-- Open Graph -->
+    <meta property="og:type"        content="website" />
+    <meta property="og:site_name"   content={siteName} />
+    <meta property="og:title"       content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url"         content={canonical} />
+    <meta property="og:image"       content={new URL(image, siteUrl).href} />
+    <meta property="og:image:width"  content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card"        content="summary_large_image" />
+    <meta name="twitter:title"       content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image"       content={new URL(image, siteUrl).href} />
+
+    <!-- Fonts: Inter + Material Symbols -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+      rel="stylesheet"
+    />
+
+    <!-- JSON-LD structured data -->
+    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+
+    <!-- Prevent FOUC: apply saved theme before paint -->
+    <script is:inline>
+      (function () {
+        try {
+          var saved = localStorage.getItem("ps-theme");
+          var prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          if (saved === "dark" || (!saved && prefersDark)) {
+            document.documentElement.classList.add("dark");
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+
+  <body
+    class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 selection:bg-primary selection:text-white"
+    style="font-family: 'Inter', system-ui, sans-serif;"
+  >
+    <slot />
+  </body>
+</html>
+
+<style is:global>
+  @import "../styles/global.css";
+
+  /* Ensure Inter renders on landing pages */
+  body:not(.app) {
+    font-family: "Inter", system-ui, sans-serif !important;
+  }
+</style>

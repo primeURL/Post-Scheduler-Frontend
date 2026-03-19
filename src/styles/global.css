@@ -2,10 +2,23 @@
 
 @import "tailwindcss";
 
+/* Class-based dark mode (html.dark) for landing/auth pages */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
+  /* Landing / marketing fonts */
+  --font-display: "Inter", system-ui, sans-serif;
+
+  /* App fonts */
   --font-sans: "Syne", system-ui, sans-serif;
   --font-mono: "Martian Mono", monospace;
 
+  /* Landing page palette */
+  --color-primary:           #7b61ff;
+  --color-background-light:  #f6f5f8;
+  --color-background-dark:   #120f23;
+
+  /* App "Midnight Ink" palette */
   --color-ink:      #0A0C10;
   --color-surface:  #11141C;
   --color-elevated: #1A1D28;
@@ -25,6 +38,26 @@
   to   { opacity: 1; transform: translateY(0);    }
 }
 
+@keyframes quoteOverlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes quoteOverlayOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes quotePanelIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes quotePanelOut {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(8px) scale(0.99); }
+}
+
 @layer base {
   *, *::before, *::after { box-sizing: border-box; }
 
@@ -32,15 +65,18 @@
     margin: 0;
     padding: 0;
     min-height: 100%;
-    background-color: #0A0C10;
-    color: #DED9CE;
-    font-family: "Syne", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Subtle grid texture */
-  body::before {
+  /* ── App pages (Midnight Ink) ── */
+  body.app {
+    background-color: #0A0C10;
+    color: #DED9CE;
+    font-family: "Syne", system-ui, sans-serif;
+  }
+
+  body.app::before {
     content: '';
     position: fixed;
     inset: 0;
@@ -52,8 +88,7 @@
     z-index: 0;
   }
 
-  /* Accent glow at top */
-  body::after {
+  body.app::after {
     content: '';
     position: fixed;
     top: -300px;
@@ -66,8 +101,8 @@
     z-index: 0;
   }
 
-  /* Remove default textarea/input appearance */
-  textarea, input {
+  body.app textarea,
+  body.app input {
     font-family: inherit;
     outline: none;
     border: none;
@@ -76,8 +111,18 @@
     resize: none;
   }
 
-  /* Scrollbar styling */
+  /* ── Scrollbar (global) ── */
   ::-webkit-scrollbar        { width: 4px; }
   ::-webkit-scrollbar-track  { background: #11141C; }
   ::-webkit-scrollbar-thumb  { background: #252B3C; border-radius: 2px; }
+}
+
+/* ── Landing page helpers ── */
+.landing-grid-bg {
+  background-image: radial-gradient(circle at 2px 2px, rgba(123, 97, 255, 0.15) 1px, transparent 0);
+  background-size: 40px 40px;
+}
+
+.glow-effect {
+  box-shadow: 0 0 80px -10px rgba(123, 97, 255, 0.3);
 }

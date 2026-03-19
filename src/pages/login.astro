@@ -1,4 +1,93 @@
 ---
-// TODO: re-enable when Google OAuth is configured
-return Astro.redirect("/compose");
+import LandingLayout from "../layouts/LandingLayout.astro";
+import LoginButton from "../components/LoginButton";
 ---
+
+<LandingLayout
+  title="Sign In — Post Scheduler"
+  description="Sign in to Post Scheduler to compose, schedule, and track your X threads."
+  noindex={true}
+>
+  <script is:inline>
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.toggle("dark");
+      localStorage.setItem("ps-theme", isDark ? "dark" : "light");
+      document.querySelectorAll(".theme-icon").forEach(function (el) {
+        el.textContent = isDark ? "light_mode" : "dark_mode";
+      });
+    }
+  </script>
+
+  <!-- Ambient background -->
+  <div class="fixed inset-0 landing-grid-bg pointer-events-none opacity-40" aria-hidden="true"></div>
+  <div
+    class="fixed top-[-15%] left-1/2 -translate-x-1/2 w-[700px] h-[500px] rounded-full pointer-events-none"
+    style="background:rgba(123,97,255,0.15);filter:blur(120px);"
+    aria-hidden="true"
+  ></div>
+
+  <!-- Nav -->
+  <nav class="relative z-10 border-b border-slate-200/60 dark:border-slate-800 bg-white/70 dark:bg-background-dark/70 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-2.5" aria-label="Post Scheduler home">
+        <div class="bg-primary p-1.5 rounded-lg">
+          <span class="material-symbols-outlined text-white" style="font-size:18px;" aria-hidden="true">grid_view</span>
+        </div>
+        <span class="text-base font-bold tracking-tight">Post Scheduler</span>
+      </a>
+      <button
+        onclick="toggleTheme()"
+        class="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+        aria-label="Toggle dark/light mode"
+      >
+        <span class="material-symbols-outlined theme-icon text-xl">dark_mode</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Card -->
+  <main class="relative z-10 min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-12">
+    <div class="w-full max-w-sm" style="animation:fadeUp 0.3s ease-out both;">
+      <div class="text-center mb-8">
+        <div class="inline-flex items-center justify-center w-14 h-14 bg-primary/10 border border-primary/20 rounded-2xl mb-4">
+          <span class="material-symbols-outlined text-primary text-3xl" aria-hidden="true">grid_view</span>
+        </div>
+        <h1 class="text-2xl font-bold tracking-tight">Welcome back</h1>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mt-2">Sign in to continue to Post Scheduler</p>
+      </div>
+
+      <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-8 shadow-sm backdrop-blur-sm">
+        <LoginButton client:only="react" />
+        <div class="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800 text-center">
+          <p class="text-xs text-slate-400 leading-relaxed">
+            By signing in you agree to our
+            <a href="#" class="text-primary hover:underline">Terms</a> and
+            <a href="#" class="text-primary hover:underline">Privacy Policy</a>.
+          </p>
+        </div>
+      </div>
+
+      <div class="text-center mt-6">
+        <a href="/" class="text-sm text-slate-500 dark:text-slate-400 hover:text-primary transition-colors">
+          ← Back to homepage
+        </a>
+      </div>
+    </div>
+  </main>
+
+  <script is:inline>
+    (function () {
+      var isDark = document.documentElement.classList.contains("dark");
+      document.querySelectorAll(".theme-icon").forEach(function (el) {
+        el.textContent = isDark ? "light_mode" : "dark_mode";
+      });
+    })();
+  </script>
+</LandingLayout>
+
+<style>
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+</style>

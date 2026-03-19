@@ -1,0 +1,10 @@
+---
+import AppLayout from "../../layouts/AppLayout.astro";
+import AuthInit from "../../components/AuthInit";
+import AccountsSettings from "../../components/AccountsSettings";
+---
+
+<AppLayout title="Account Settings — Post Scheduler">
+  <AuthInit client:only="react" />
+  <AccountsSettings client:only="react" />
+</AppLayout>
