@@ -646,6 +646,7 @@ export default function AnalyticsDashboard() {
             const busyRefresh = !!busy[`refresh:${row.post_id}`];
             const busyEdit = !!busy[`edit:${row.post_id}`];
             const busyReschedule = !!busy[`reschedule:${row.post_id}`];
+            const hidePerformance = row.status === "scheduled" || row.status === "draft";
 
             return (
               <div
@@ -775,38 +776,60 @@ export default function AnalyticsDashboard() {
                 </div>
 
                 <div>
-                  <div
-                    style={{
-                      color: "var(--color-cream)",
-                      fontFamily: "var(--font-mono)",
-                      fontWeight: 700,
-                      fontSize: 38,
-                      lineHeight: 1,
-                    }}
-                  >
-                    {fmtBig(row.impression_count)}
-                  </div>
-                  <div
-                    style={{
-                      marginTop: 4,
-                      color: "var(--color-success)",
-                      fontSize: 14,
-                      fontFamily: "var(--font-mono)",
-                    }}
-                  >
-                    {engagementRate(row)} rate
-                  </div>
+                  {hidePerformance ? (
+                    <div
+                      style={{
+                        color: "var(--color-muted)",
+                        fontFamily: "var(--font-mono)",
+                        fontWeight: 700,
+                        fontSize: 28,
+                        lineHeight: 1,
+                      }}
+                    >
+                      —
+                    </div>
+                  ) : (
+                    <>
+                      <div
+                        style={{
+                          color: "var(--color-cream)",
+                          fontFamily: "var(--font-mono)",
+                          fontWeight: 700,
+                          fontSize: 38,
+                          lineHeight: 1,
+                        }}
+                      >
+                        {fmtBig(row.impression_count)}
+                      </div>
+                      <div
+                        style={{
+                          marginTop: 4,
+                          color: "var(--color-success)",
+                          fontSize: 14,
+                          fontFamily: "var(--font-mono)",
+                        }}
+                      >
+                        {engagementRate(row)} rate
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <div style={{ display: "flex", gap: 14, alignItems: "center", color: "var(--color-cream)", fontFamily: "var(--font-mono)", fontSize: 30 }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontSize: 22, opacity: 0.9 }}>♥</span>
-                    {fmtBig(row.like_count)}
-                  </span>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontSize: 20, opacity: 0.9 }}>💬</span>
-                    {fmtBig(row.reply_count)}
-                  </span>
+                  {hidePerformance ? (
+                    <span style={{ color: "var(--color-muted)", fontSize: 28 }}>—</span>
+                  ) : (
+                    <>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 22, opacity: 0.9 }}>♥</span>
+                        {fmtBig(row.like_count)}
+                      </span>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 20, opacity: 0.9 }}>💬</span>
+                        {fmtBig(row.reply_count)}
+                      </span>
+                    </>
+                  )}
                 </div>
 
                 <div style={{ justifySelf: "end", position: "relative" }}>
@@ -1387,36 +1410,38 @@ function PostDetailModal({
               )}
             </div>
 
-            <div style={{ marginTop: 12, border: "1px solid var(--color-border)", borderRadius: 14, padding: 12, background: "color-mix(in srgb, var(--color-elevated) 90%, transparent)" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 10 }}>
-                {[
-                  { label: "Impressions", value: latest?.impressions ?? 0 },
-                  { label: "Likes", value: latest?.likes ?? 0 },
-                  { label: "Reposts", value: latest?.retweets ?? 0 },
-                  { label: "Replies", value: latest?.replies ?? 0 },
-                  { label: "Quoted", value: latest?.quoted_count ?? 0 },
-                  { label: "Bookmarks", value: latest?.bookmarks ?? 0 },
-                ].map((metric) => (
-                  <div key={metric.label} style={{ border: "1px solid var(--color-border)", borderRadius: 10, padding: "8px 10px", background: "color-mix(in srgb, var(--color-ink) 18%, transparent)" }}>
-                    <div style={{ fontSize: 10, color: "var(--color-muted)", fontFamily: "var(--font-mono)", textTransform: "uppercase" }}>{metric.label}</div>
-                    <div style={{ marginTop: 4, fontSize: 21, color: "var(--color-cream)", fontFamily: "var(--font-mono)", fontWeight: 700 }}>{fmtBig(metric.value)}</div>
-                  </div>
-                ))}
-              </div>
-              {metricsSeries.length > 1 && (
-                <div style={{ marginTop: 12, border: "1px solid var(--color-border)", borderRadius: 10, padding: 10, background: "color-mix(in srgb, var(--color-ink) 18%, transparent)" }}>
-                  <div style={{ fontSize: 10, color: "var(--color-muted)", fontFamily: "var(--font-mono)", textTransform: "uppercase", marginBottom: 6 }}>
-                    Impression trend
-                  </div>
-                  <svg viewBox="0 0 300 70" style={{ width: "100%", height: 80 }}>
-                    <path d={trendPath} fill="none" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
+            {isPublished && (
+              <div style={{ marginTop: 12, border: "1px solid var(--color-border)", borderRadius: 14, padding: 12, background: "color-mix(in srgb, var(--color-elevated) 90%, transparent)" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 10 }}>
+                  {[
+                    { label: "Impressions", value: latest?.impressions ?? 0 },
+                    { label: "Likes", value: latest?.likes ?? 0 },
+                    { label: "Reposts", value: latest?.retweets ?? 0 },
+                    { label: "Replies", value: latest?.replies ?? 0 },
+                    { label: "Quoted", value: latest?.quoted_count ?? 0 },
+                    { label: "Bookmarks", value: latest?.bookmarks ?? 0 },
+                  ].map((metric) => (
+                    <div key={metric.label} style={{ border: "1px solid var(--color-border)", borderRadius: 10, padding: "8px 10px", background: "color-mix(in srgb, var(--color-ink) 18%, transparent)" }}>
+                      <div style={{ fontSize: 10, color: "var(--color-muted)", fontFamily: "var(--font-mono)", textTransform: "uppercase" }}>{metric.label}</div>
+                      <div style={{ marginTop: 4, fontSize: 21, color: "var(--color-cream)", fontFamily: "var(--font-mono)", fontWeight: 700 }}>{fmtBig(metric.value)}</div>
+                    </div>
+                  ))}
                 </div>
-              )}
-              <div style={{ marginTop: 8, fontSize: 11, color: "var(--color-muted)", fontFamily: "var(--font-mono)" }}>
-                Last analytics snapshot: {latest ? fmtDateTime(latest.fetched_at) : "No snapshots yet"}
+                {metricsSeries.length > 1 && (
+                  <div style={{ marginTop: 12, border: "1px solid var(--color-border)", borderRadius: 10, padding: 10, background: "color-mix(in srgb, var(--color-ink) 18%, transparent)" }}>
+                    <div style={{ fontSize: 10, color: "var(--color-muted)", fontFamily: "var(--font-mono)", textTransform: "uppercase", marginBottom: 6 }}>
+                      Impression trend
+                    </div>
+                    <svg viewBox="0 0 300 70" style={{ width: "100%", height: 80 }}>
+                      <path d={trendPath} fill="none" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                )}
+                <div style={{ marginTop: 8, fontSize: 11, color: "var(--color-muted)", fontFamily: "var(--font-mono)" }}>
+                  Last analytics snapshot: {latest ? fmtDateTime(latest.fetched_at) : "No snapshots yet"}
+                </div>
               </div>
-            </div>
+            )}
 
             <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
               <button onClick={onRefresh} style={detailButtonStyle(false)}>Reload</button>

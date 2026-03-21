@@ -679,6 +679,8 @@ export default function ContentCalendar() {
 
             {detailPost && (
               <>
+                {/** Show analytics only for published posts */}
+                
                 <div style={{ border: "1px solid var(--color-border)", borderRadius: 14, padding: 14, background: "color-mix(in srgb, var(--color-ink) 18%, transparent)" }}>
                   <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
                     <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--color-muted)", textTransform: "uppercase" }}>{detailPost.status}</span>
@@ -758,23 +760,25 @@ export default function ContentCalendar() {
                   <button onClick={() => { void actionDeleteFromDetail(); }} style={calendarDetailButton(detailPost.is_deleted)}>Delete</button>
                 </div>
 
-                <div style={{ marginTop: 12, border: "1px solid var(--color-border)", borderRadius: 14, padding: 12, background: "color-mix(in srgb, var(--color-elevated) 90%, transparent)" }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 10 }}>
-                    {[
-                      { label: "Impressions", value: detailLatest?.impressions ?? 0 },
-                      { label: "Likes", value: detailLatest?.likes ?? 0 },
-                      { label: "Reposts", value: detailLatest?.retweets ?? 0 },
-                      { label: "Replies", value: detailLatest?.replies ?? 0 },
-                      { label: "Quoted", value: detailLatest?.quoted_count ?? 0 },
-                      { label: "Bookmarks", value: detailLatest?.bookmarks ?? 0 },
-                    ].map((metric) => (
-                      <div key={metric.label} style={{ border: "1px solid var(--color-border)", borderRadius: 10, padding: "8px 10px", background: "color-mix(in srgb, var(--color-ink) 18%, transparent)" }}>
-                        <div style={{ fontSize: 10, color: "var(--color-muted)", fontFamily: "var(--font-mono)", textTransform: "uppercase" }}>{metric.label}</div>
-                        <div style={{ marginTop: 4, fontSize: 21, color: "var(--color-cream)", fontFamily: "var(--font-mono)", fontWeight: 700 }}>{metric.value.toLocaleString()}</div>
-                      </div>
-                    ))}
+                {detailPost.status === "published" && !detailPost.is_deleted && (
+                  <div style={{ marginTop: 12, border: "1px solid var(--color-border)", borderRadius: 14, padding: 12, background: "color-mix(in srgb, var(--color-elevated) 90%, transparent)" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 10 }}>
+                      {[
+                        { label: "Impressions", value: detailLatest?.impressions ?? 0 },
+                        { label: "Likes", value: detailLatest?.likes ?? 0 },
+                        { label: "Reposts", value: detailLatest?.retweets ?? 0 },
+                        { label: "Replies", value: detailLatest?.replies ?? 0 },
+                        { label: "Quoted", value: detailLatest?.quoted_count ?? 0 },
+                        { label: "Bookmarks", value: detailLatest?.bookmarks ?? 0 },
+                      ].map((metric) => (
+                        <div key={metric.label} style={{ border: "1px solid var(--color-border)", borderRadius: 10, padding: "8px 10px", background: "color-mix(in srgb, var(--color-ink) 18%, transparent)" }}>
+                          <div style={{ fontSize: 10, color: "var(--color-muted)", fontFamily: "var(--font-mono)", textTransform: "uppercase" }}>{metric.label}</div>
+                          <div style={{ marginTop: 4, fontSize: 21, color: "var(--color-cream)", fontFamily: "var(--font-mono)", fontWeight: 700 }}>{metric.value.toLocaleString()}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </>
             )}
           </div>
@@ -967,9 +971,19 @@ export default function ContentCalendar() {
       </div>
 
       {/* ── Grid + Panel ──────────────────────────────────────────────── */}
-      <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+      <div
+        style={{
+          display: "grid",
+          gap: 16,
+          alignItems: "flex-start",
+          gridTemplateColumns:
+            selectedDay != null
+              ? "minmax(0, 1fr) minmax(240px, 272px)"
+              : "minmax(0, 1fr)",
+        }}
+      >
         {/* Calendar grid */}
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ minWidth: 0 }}>
           {/* Weekday labels */}
           <div
             style={{
@@ -1042,8 +1056,8 @@ export default function ContentCalendar() {
         {selectedDay != null && (
           <div
             style={{
-              width: 272,
-              flexShrink: 0,
+              width: "100%",
+              maxWidth: 272,
               animation: "var(--animate-fade-up)",
             }}
           >
