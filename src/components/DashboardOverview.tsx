@@ -285,14 +285,11 @@ export default function DashboardOverview() {
         className="flex flex-col md:flex-row md:items-end justify-between gap-6"
       >
         <div className="space-y-1">
-          <motion.div variants={itemVariants} className="flex items-center gap-2 text-[var(--color-accent)] font-mono text-sm uppercase tracking-widest">
+          <motion.div variants={itemVariants} className="flex items-center gap-2 text-[var(--color-accent)] font-mono text-xs uppercase tracking-[0.3em]">
             <LayoutDashboard className="w-4 h-4" />
             Overview
           </motion.div>
-          <motion.h1 variants={itemVariants} className="text-4xl md:text-5xl font-extrabold font-sans text-[var(--color-cream)] tracking-tight">
-            Dashboard
-          </motion.h1>
-          <motion.p variants={itemVariants} className="text-[var(--color-muted)] font-mono max-w-md">
+          <motion.p variants={itemVariants} className="text-[var(--color-muted)] font-mono max-w-md pt-1">
             Insights and performance for your social schedule.
           </motion.p>
         </div>
@@ -305,7 +302,7 @@ export default function DashboardOverview() {
           <Button size="lg" className="shadow-lg shadow-[var(--color-accent)]/20 font-bold px-6" asChild>
             <a href="/compose" className="flex items-center gap-2">
               <Plus className="w-5 h-5" />
-              New Post
+              Create Post
             </a>
           </Button>
         </motion.div>
