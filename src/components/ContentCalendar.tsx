@@ -3,6 +3,8 @@ import { useStore } from "@nanostores/react";
 import { $user } from "../stores/auth";
 import { api } from "../lib/api";
 import type { DownloadUrlResponse, Post, PostAnalytics, PostStatus } from "../lib/types";
+import ConfirmDeleteModal from "./ConfirmDeleteModal";
+import PostDetailsModal from "./PostDetailsModal";
 import SchedulePickerModal from "./SchedulePickerModal";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -413,6 +415,7 @@ export default function ContentCalendar() {
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Post | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [detailPostId, setDetailPostId] = useState<string | null>(null);
   const [detailPost, setDetailPost] = useState<Post | null>(null);
@@ -502,9 +505,10 @@ export default function ContentCalendar() {
     try {
       await api.delete(`/posts/${deleteTarget.id}`);
       setPosts((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+      setDeleteError(null);
       setDeleteTarget(null);
-    } catch {
-      // silent
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "Delete failed.");
     } finally {
       setDeleting(false);
     }
@@ -561,9 +565,6 @@ export default function ContentCalendar() {
   };
 
   const detailLatest = detailAnalytics[detailAnalytics.length - 1] ?? null;
-  const detailMedia = detailPost?.media ?? [];
-  const detailCurrentMedia = detailMedia[detailActiveMediaIndex] ?? null;
-  const detailCurrentSrc = detailCurrentMedia ? (detailMediaUrls[detailCurrentMedia.key] ?? detailCurrentMedia.public_url) : null;
 
   const refreshDetail = async () => {
     if (!detailPostId) return;
@@ -602,6 +603,7 @@ export default function ContentCalendar() {
 
   const actionDeleteFromDetail = async () => {
     if (!detailPost) return;
+    setDeleteError(null);
     setDeleteTarget(detailPost);
   };
 
@@ -639,220 +641,73 @@ export default function ContentCalendar() {
         />
       )}
 
-      {detailPostId && (
-        <div
-          onClick={closeDetail}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 75,
-            background: "rgba(2, 6, 14, 0.75)",
-            backdropFilter: "blur(8px)",
-            display: "grid",
-            placeItems: "center",
-            padding: 20,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "min(980px, 100%)",
-              maxHeight: "88vh",
-              overflowY: "auto",
-              borderRadius: 18,
-              border: "1px solid var(--color-border)",
-              background: "linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 92%, #000), var(--color-surface))",
-              padding: 16,
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <h3 style={{ margin: 0, color: "var(--color-cream)", fontFamily: "var(--font-sans)", fontSize: 28 }}>Post Details</h3>
-              <button onClick={closeDetail} style={{ border: "none", background: "transparent", color: "var(--color-cream)", fontSize: 28, lineHeight: 1 }}>×</button>
-            </div>
-
-            {detailLoading && <p style={{ color: "var(--color-muted)", fontFamily: "var(--font-mono)", fontSize: 13 }}>Loading post details...</p>}
-            {detailError && <p style={{ color: "var(--color-danger)", fontFamily: "var(--font-mono)", fontSize: 13 }}>{detailError}</p>}
-
-            {detailPost && (
-              <>
-                {/** Show analytics only for published posts */}
-                
-                <div style={{ border: "1px solid var(--color-border)", borderRadius: 14, padding: 14, background: "color-mix(in srgb, var(--color-ink) 18%, transparent)" }}>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
-                    <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--color-muted)", textTransform: "uppercase" }}>{detailPost.status}</span>
-                    {detailPost.scheduled_for && <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--color-accent)" }}>Scheduled {new Date(detailPost.scheduled_for).toLocaleString()}</span>}
-                    {detailPost.published_at && <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--color-success)" }}>Published {new Date(detailPost.published_at).toLocaleString()}</span>}
-                  </div>
-                  <p style={{ margin: 0, color: "var(--color-cream)", fontSize: 22, lineHeight: 1.3, fontFamily: "var(--font-sans)", whiteSpace: "pre-wrap" }}>
-                    {detailPost.content}
-                  </p>
-
-                  {detailQuoteSourcePost && (
-                    <div
-                      style={{
-                        marginTop: 12,
-                        borderRadius: 12,
-                        border: "1px solid color-mix(in srgb, var(--color-accent) 35%, var(--color-border))",
-                        background: "color-mix(in srgb, var(--color-ink) 28%, transparent)",
-                        padding: 12,
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 10,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.08em",
-                          color: "var(--color-accent)",
-                          fontFamily: "var(--font-mono)",
-                          marginBottom: 6,
-                        }}
-                      >
-                        Original post
-                      </div>
-                      <p
-                        style={{
-                          margin: 0,
-                          color: "var(--color-cream)",
-                          fontSize: 16,
-                          lineHeight: 1.35,
-                          fontFamily: "var(--font-sans)",
-                          whiteSpace: "pre-wrap",
-                        }}
-                      >
-                        {detailQuoteSourcePost.content}
-                      </p>
-                    </div>
-                  )}
-
-                  {!!detailMedia.length && (
-                    <div style={{ marginTop: 12 }}>
-                      {detailCurrentMedia && (
-                        <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid var(--color-border)", background: "#000", position: "relative" }}>
-                          {detailCurrentMedia.content_type?.startsWith("video/") ? (
-                            <video controls src={detailCurrentSrc ?? undefined} style={{ width: "100%", maxHeight: 420, objectFit: "contain" }} />
-                          ) : (
-                            <img src={detailCurrentSrc ?? undefined} alt={detailCurrentMedia.file_name ?? "Post media"} style={{ width: "100%", maxHeight: 420, objectFit: "contain" }} />
-                          )}
-
-                          {detailMedia.length > 1 && (
-                            <>
-                              <button onClick={() => setDetailActiveMediaIndex((i) => (i - 1 + detailMedia.length) % detailMedia.length)} style={{ position: "absolute", top: "50%", left: 8, transform: "translateY(-50%)", border: "1px solid var(--color-border)", background: "rgba(9,13,22,0.7)", color: "var(--color-cream)", width: 34, height: 34, borderRadius: 999, fontSize: 20, lineHeight: 1 }}>‹</button>
-                              <button onClick={() => setDetailActiveMediaIndex((i) => (i + 1) % detailMedia.length)} style={{ position: "absolute", top: "50%", right: 8, transform: "translateY(-50%)", border: "1px solid var(--color-border)", background: "rgba(9,13,22,0.7)", color: "var(--color-cream)", width: 34, height: 34, borderRadius: 999, fontSize: 20, lineHeight: 1 }}>›</button>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  <button onClick={refreshDetail} style={calendarDetailButton(false)}>Reload</button>
-                  {detailPost.status === "published" && !detailPost.is_deleted && <button onClick={() => { void actionRefreshAnalytics(); }} style={calendarDetailButton(false)}>Refresh now</button>}
-                  {detailPost.status === "published" && !detailPost.is_deleted && <button onClick={() => { void actionRepost(); }} style={calendarDetailButton(false)}>{detailPost.reposted_at ? "Undo repost" : "Repost"}</button>}
-                  {detailPost.status === "published" && !detailPost.is_deleted && <button onClick={() => { void actionQuote(); }} style={calendarDetailButton(false)}>Quote</button>}
-                  {detailPost.status === "scheduled" && !detailPost.is_deleted && <button onClick={() => { void actionEditContent(); }} style={calendarDetailButton(false)}>Edit content</button>}
-                  {detailPost.status === "scheduled" && !detailPost.is_deleted && <button onClick={() => setScheduleTargetPostId(detailPost.id)} style={calendarDetailButton(false)}>Change time</button>}
-                  <button onClick={() => { void actionDeleteFromDetail(); }} style={calendarDetailButton(detailPost.is_deleted)}>Delete</button>
-                </div>
-
-                {detailPost.status === "published" && !detailPost.is_deleted && (
-                  <div style={{ marginTop: 12, border: "1px solid var(--color-border)", borderRadius: 14, padding: 12, background: "color-mix(in srgb, var(--color-elevated) 90%, transparent)" }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 10 }}>
-                      {[
-                        { label: "Impressions", value: detailLatest?.impressions ?? 0 },
-                        { label: "Likes", value: detailLatest?.likes ?? 0 },
-                        { label: "Reposts", value: detailLatest?.retweets ?? 0 },
-                        { label: "Replies", value: detailLatest?.replies ?? 0 },
-                        { label: "Quoted", value: detailLatest?.quoted_count ?? 0 },
-                        { label: "Bookmarks", value: detailLatest?.bookmarks ?? 0 },
-                      ].map((metric) => (
-                        <div key={metric.label} style={{ border: "1px solid var(--color-border)", borderRadius: 10, padding: "8px 10px", background: "color-mix(in srgb, var(--color-ink) 18%, transparent)" }}>
-                          <div style={{ fontSize: 10, color: "var(--color-muted)", fontFamily: "var(--font-mono)", textTransform: "uppercase" }}>{metric.label}</div>
-                          <div style={{ marginTop: 4, fontSize: 21, color: "var(--color-cream)", fontFamily: "var(--font-mono)", fontWeight: 700 }}>{metric.value.toLocaleString()}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
+      <PostDetailsModal
+        isOpen={!!detailPostId}
+        onClose={closeDetail}
+        post={detailPost}
+        loading={detailLoading}
+        error={detailError}
+        mediaUrls={detailMediaUrls}
+        activeMediaIndex={detailActiveMediaIndex}
+        onActiveMediaIndexChange={setDetailActiveMediaIndex}
+        quoteSourceContent={detailQuoteSourcePost?.content ?? null}
+        actions={
+          <>
+            {detailPost?.status === "published" && !detailPost.is_deleted && <button onClick={() => { void actionRefreshAnalytics(); }} style={calendarDetailButton(false)}>Refresh now</button>}
+            {detailPost?.status === "published" && !detailPost.is_deleted && <button onClick={() => { void actionRepost(); }} style={calendarDetailButton(false)}>{detailPost.reposted_at ? "Undo repost" : "Repost"}</button>}
+            {detailPost?.status === "published" && !detailPost.is_deleted && <button onClick={() => { void actionQuote(); }} style={calendarDetailButton(false)}>Quote</button>}
+            {(detailPost?.status === "draft" || detailPost?.status === "scheduled") && !detailPost?.is_deleted && (
+              <button onClick={() => { void actionEditContent(); }} style={calendarDetailButton(false)}>Edit</button>
             )}
-          </div>
-        </div>
-      )}
-
-      {deleteTarget && (
-        <div
-          onClick={() => !deleting && setDeleteTarget(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 70,
-            background: "rgba(2, 6, 14, 0.72)",
-            backdropFilter: "blur(6px)",
-            display: "grid",
-            placeItems: "center",
-            padding: 20,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "min(620px, 100%)",
-              borderRadius: 16,
-              border: "1px solid var(--color-border)",
-              background: "var(--color-surface)",
-              padding: 16,
-            }}
-          >
-            <h3 style={{ margin: 0, color: "var(--color-cream)", fontFamily: "var(--font-sans)", fontSize: 24 }}>
-              Delete this post?
-            </h3>
-            <p style={{ marginTop: 8, marginBottom: 0, color: "var(--color-muted)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
-              This post will be marked as deleted and hidden from active views.
-            </p>
-            <p style={{ marginTop: 10, color: "var(--color-cream)", fontFamily: "var(--font-sans)", fontSize: 18 }}>
-              {deleteTarget.content.slice(0, 120)}
-            </p>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+            {(detailPost?.status === "draft" || detailPost?.status === "scheduled") && !detailPost?.is_deleted && (
               <button
-                onClick={() => setDeleteTarget(null)}
-                disabled={deleting}
+                onClick={() => { void actionDeleteFromDetail(); }}
                 style={{
-                  borderRadius: 999,
-                  border: "1px solid var(--color-border)",
-                  background: "transparent",
-                  color: "var(--color-cream)",
-                  padding: "8px 14px",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: 12,
+                  ...calendarDetailButton(detailPost.is_deleted),
+                  border: "1px solid color-mix(in srgb, var(--color-danger) 45%, transparent)",
+                  color: "var(--color-danger)",
                 }}
               >
-                Cancel
+                Delete
               </button>
-              <button
-                onClick={() => {
-                  void confirmDelete();
-                }}
-                disabled={deleting}
-                style={{
-                  borderRadius: 999,
-                  border: "none",
-                  background: "var(--color-danger)",
-                  color: "#10141b",
-                  padding: "8px 16px",
-                  fontFamily: "var(--font-sans)",
-                  fontWeight: 700,
-                  fontSize: 15,
-                  opacity: deleting ? 0.6 : 1,
-                }}
-              >
-                {deleting ? "Deleting..." : "Yes, delete"}
-              </button>
+            )}
+          </>
+        }
+      >
+        {detailPost?.status === "published" && !detailPost.is_deleted && (
+          <div style={{ marginTop: 12, border: "1px solid var(--color-border)", borderRadius: 14, padding: 12, background: "color-mix(in srgb, var(--color-elevated) 90%, transparent)" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 10 }}>
+              {[
+                { label: "Impressions", value: detailLatest?.impressions ?? 0 },
+                { label: "Likes", value: detailLatest?.likes ?? 0 },
+                { label: "Reposts", value: detailLatest?.retweets ?? 0 },
+                { label: "Replies", value: detailLatest?.replies ?? 0 },
+                { label: "Quoted", value: detailLatest?.quoted_count ?? 0 },
+                { label: "Bookmarks", value: detailLatest?.bookmarks ?? 0 },
+              ].map((metric) => (
+                <div key={metric.label} style={{ border: "1px solid var(--color-border)", borderRadius: 10, padding: "8px 10px", background: "color-mix(in srgb, var(--color-ink) 18%, transparent)" }}>
+                  <div style={{ fontSize: 10, color: "var(--color-muted)", fontFamily: "var(--font-mono)", textTransform: "uppercase" }}>{metric.label}</div>
+                  <div style={{ marginTop: 4, fontSize: 21, color: "var(--color-cream)", fontFamily: "var(--font-mono)", fontWeight: 700 }}>{metric.value.toLocaleString()}</div>
+                </div>
+              ))}
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </PostDetailsModal>
+
+      <ConfirmDeleteModal
+        open={!!deleteTarget}
+        busy={deleting}
+        previewText={deleteTarget?.content.slice(0, 120) ?? ""}
+        errorMessage={deleteError}
+        onCancel={() => {
+          setDeleteTarget(null);
+          setDeleteError(null);
+        }}
+        onConfirm={() => {
+          void confirmDelete();
+        }}
+      />
 
       {/* ── Header ────────────────────────────────────────────────────── */}
       <div

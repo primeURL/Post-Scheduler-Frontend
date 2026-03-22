@@ -74,9 +74,18 @@ export default function Sidebar() {
                 collapsed ? "px-2 justify-center" : "px-3"
               } ${
                 active
-                  ? "bg-primary/15 text-primary"
+                  ? "text-primary"
                   : "text-muted hover:bg-primary/10 hover:text-primary"
               }`}
+              style={
+                active
+                  ? {
+                      background: "color-mix(in srgb, var(--color-accent) 20%, transparent)",
+                      borderRight: "4px solid var(--color-accent)",
+                      boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 28%, transparent)",
+                    }
+                  : undefined
+              }
             >
               <span
                 className="material-symbols-outlined shrink-0"
@@ -92,51 +101,6 @@ export default function Sidebar() {
             </a>
           );
         })}
-
-        {/* Unscheduled drafts — only when expanded */}
-        {!collapsed && (
-          <div className="mt-6 flex flex-col gap-2">
-            <div className="flex items-center justify-between px-3">
-              <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted">
-                Unscheduled Drafts
-              </h3>
-              <span className="rounded-full border border-border bg-elevated px-2 py-0.5 text-[10px] text-cream">
-                4
-              </span>
-            </div>
-
-            <div
-              className="rounded-xl border border-border bg-ink/40 p-3 hover:border-primary/40 cursor-grab transition-colors"
-            >
-              <div className="mb-1.5 h-14 w-full overflow-hidden rounded-lg bg-elevated flex items-center justify-center">
-                <span className="material-symbols-outlined text-muted" style={{ fontSize: 24 }}>
-                  image
-                </span>
-              </div>
-              <p className="text-[11px] font-medium text-cream line-clamp-2">
-                New Product Launch Teaser #1
-              </p>
-              <div className="mt-1 flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-muted" style={{ fontSize: 12 }}>
-                  repeat
-                </span>
-                <span className="text-[9px] text-muted uppercase tracking-wide">Draft</span>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-border bg-ink/40 p-3 hover:border-primary/40 cursor-grab transition-colors">
-              <p className="text-[11px] font-medium text-cream line-clamp-2">
-                Weekly Roundup Article Hook
-              </p>
-              <div className="mt-1 flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-muted" style={{ fontSize: 12 }}>
-                  repeat
-                </span>
-                <span className="text-[9px] text-muted uppercase tracking-wide">Draft</span>
-              </div>
-            </div>
-          </div>
-        )}
       </nav>
 
       {/* Footer: Create Post + collapse toggle */}

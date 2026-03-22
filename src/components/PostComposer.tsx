@@ -641,6 +641,7 @@ export default function PostComposer() {
   const [selectedScheduledKey, setSelectedScheduledKey] =
     useState<string>("");
   const [editingPostIds, setEditingPostIds] = useState<string[]>([]);
+  const [editingSourceStatus, setEditingSourceStatus] = useState<"draft" | "scheduled" | null>(null);
   const [isComposerDropActive, setIsComposerDropActive] = useState(false);
   const [isTwoColumnLayout, setIsTwoColumnLayout] = useState(true);
   const composeGridRef = useRef<HTMLDivElement>(null);
@@ -862,10 +863,17 @@ export default function PostComposer() {
     setSelectedDraftKey("");
     setSelectedScheduledKey("");
     setEditingPostIds([]);
+    setEditingSourceStatus(null);
   };
 
   const restoreDraftGroup = useCallback((selected: DraftGroup) => {
     setEditingPostIds(selected.posts.map((post) => post.id));
+    const sourceStatus = selected.posts[0]?.status;
+    setEditingSourceStatus(
+      sourceStatus === "draft" || sourceStatus === "scheduled"
+        ? sourceStatus
+        : null,
+    );
 
     const restoredSlots: TweetSlot[] = selected.posts.map((post) => {
       const primaryMedia = post.media?.[0] ?? null;
@@ -1057,6 +1065,18 @@ export default function PostComposer() {
   const isOverLimit = slots.some((s) => s.content.length > charLimit);
   const isUploadingMedia = slots.some((s) => s.media?.uploading);
   const totalChars = slots.reduce((sum, s) => sum + s.content.length, 0);
+  const editingBadgeLabel =
+    editingSourceStatus === "scheduled"
+      ? "Editing scheduled post"
+      : editingSourceStatus === "draft"
+        ? "Editing drafted post"
+        : "Editing existing post";
+  const draftActionLabel =
+    editingPostIds.length > 0
+      ? editingSourceStatus === "scheduled"
+        ? "Move to Draft"
+        : "Save Changes"
+      : "Save Draft";
   const primaryDisabled =
     isEmpty || isOverLimit || isUploadingMedia || actionState === "loading";
 
@@ -1315,7 +1335,7 @@ export default function PostComposer() {
                         color: "#8B97FF",
                       }}
                     >
-                      Editing existing post
+                      {editingBadgeLabel}
                     </span>
                   </div>
                 )}
@@ -1509,7 +1529,7 @@ export default function PostComposer() {
                     className="rounded-lg border px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-muted hover:text-cream hover:bg-primary/10"
                     style={{ borderColor: "rgba(123,97,255,0.3)" }}
                   >
-                    {editingPostIds.length > 0 ? "Move to Draft" : "Save Draft"}
+                    {draftActionLabel}
                   </button>
                   <button
                     onClick={() => submit("publish")}

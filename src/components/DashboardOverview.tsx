@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
-import type { ConnectedAccount, Post, PostAnalyticsLatest } from "../lib/types";
-import SchedulePickerModal from "./SchedulePickerModal";
+import type {
+  ConnectedAccount,
+  DownloadUrlResponse,
+  Post,
+  PostAnalyticsLatest,
+} from "../lib/types";
+import ConfirmDeleteModal from "./ConfirmDeleteModal";
+import PostDetailsModal from "./PostDetailsModal";
 
 type LoadState = "idle" | "loading" | "error";
 
@@ -36,7 +42,10 @@ export default function DashboardOverview() {
   const [detailPost, setDetailPost] = useState<Post | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
-  const [scheduleTargetPostId, setScheduleTargetPostId] = useState<string | null>(null);
+  const [detailMediaUrls, setDetailMediaUrls] = useState<Record<string, string>>({});
+  const [detailActiveMediaIndex, setDetailActiveMediaIndex] = useState(0);
+  const [deleteTarget, setDeleteTarget] = useState<Post | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
@@ -99,14 +108,14 @@ export default function DashboardOverview() {
     return activePosts
       .filter((post) => post.status === "scheduled" && !!post.scheduled_for)
       .sort((a, b) => new Date(a.scheduled_for ?? 0).getTime() - new Date(b.scheduled_for ?? 0).getTime())
-      .slice(0, 6);
+      .slice(0, 4);
   }, [activePosts]);
 
   const recentDrafts = useMemo(() => {
     return activePosts
       .filter((post) => post.status === "draft")
       .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-      .slice(0, 6);
+      .slice(0, 4);
   }, [activePosts]);
 
   const openDetail = async (postId: string) => {
@@ -115,10 +124,23 @@ export default function DashboardOverview() {
     setDetailError(null);
     try {
       const postData = await api.get<Post>(`/posts/${postId}?include_deleted=true`);
+      const signedEntries = await Promise.all(
+        (postData.media ?? [])
+          .filter((m) => !!m.key)
+          .map(async (m) => {
+            const res = await api.get<DownloadUrlResponse>(
+              `/storage/download-url?file_key=${encodeURIComponent(m.key)}`,
+            );
+            return [m.key, res.download_url] as const;
+          }),
+      );
       setDetailPost(postData);
+      setDetailMediaUrls(Object.fromEntries(signedEntries));
+      setDetailActiveMediaIndex(0);
     } catch (e) {
       setDetailError(e instanceof Error ? e.message : "Failed to load post details.");
       setDetailPost(null);
+      setDetailMediaUrls({});
     } finally {
       setDetailLoading(false);
     }
@@ -127,6 +149,7 @@ export default function DashboardOverview() {
   const closeDetail = () => {
     setDetailPostId(null);
     setDetailPost(null);
+    setDetailMediaUrls({});
     setDetailError(null);
   };
 
@@ -145,11 +168,6 @@ export default function DashboardOverview() {
     }
   };
 
-  const refreshDetail = async () => {
-    if (!detailPostId) return;
-    await openDetail(detailPostId);
-  };
-
   const actionEditContent = async () => {
     if (!detailPost) return;
     window.location.href = `/compose?edit_post_id=${encodeURIComponent(detailPost.id)}`;
@@ -157,13 +175,21 @@ export default function DashboardOverview() {
 
   const actionDelete = async () => {
     if (!detailPost) return;
-    const ok = window.confirm("Delete this post?");
-    if (!ok) return;
+    setDeleteError(null);
+    setDeleteTarget(detailPost);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await api.delete(`/posts/${detailPost.id}`);
+      await api.delete(`/posts/${deleteTarget.id}`);
+      setDeleteError(null);
+      setDeleteTarget(null);
       closeDetail();
       await refreshAll();
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "Delete failed.");
     } finally {
       setDeleting(false);
     }
@@ -171,95 +197,49 @@ export default function DashboardOverview() {
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 py-8" style={{ animation: "var(--animate-fade-up)" }}>
-      {scheduleTargetPostId && (
-        <SchedulePickerModal
-          initialISO={detailPost?.scheduled_for ?? null}
-          onClose={() => setScheduleTargetPostId(null)}
-          onConfirm={async (localIso) => {
-            await api.patch(`/posts/${scheduleTargetPostId}`, {
-              scheduled_for: new Date(localIso).toISOString(),
-            });
-            setScheduleTargetPostId(null);
-            await refreshDetail();
-            await refreshAll();
-          }}
-        />
-      )}
+      <PostDetailsModal
+        isOpen={!!detailPostId}
+        onClose={closeDetail}
+        post={detailPost}
+        loading={detailLoading}
+        error={detailError}
+        mediaUrls={detailMediaUrls}
+        activeMediaIndex={detailActiveMediaIndex}
+        onActiveMediaIndexChange={setDetailActiveMediaIndex}
+        maxWidth="760px"
+        actions={
+          (detailPost?.status === "draft" || detailPost?.status === "scheduled") && !detailPost?.is_deleted ? (
+            <>
+              <button onClick={() => { void actionEditContent(); }} style={detailButtonStyle(false)}>Edit</button>
+              <button
+                onClick={() => { void actionDelete(); }}
+                disabled={deleting || detailPost.is_deleted}
+                style={{
+                  ...detailButtonStyle(deleting || detailPost.is_deleted),
+                  border: "1px solid color-mix(in srgb, var(--color-danger) 45%, transparent)",
+                  color: "var(--color-danger)",
+                }}
+              >
+                {deleting ? "Deleting..." : "Delete"}
+              </button>
+            </>
+          ) : null
+        }
+      />
 
-      {detailPostId && (
-        <div
-          onClick={closeDetail}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 75,
-            background: "rgba(2, 6, 14, 0.75)",
-            backdropFilter: "blur(8px)",
-            display: "grid",
-            placeItems: "center",
-            padding: 20,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "min(760px, 100%)",
-              borderRadius: 16,
-              border: "1px solid var(--color-border)",
-              background: "linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 92%, #000), var(--color-surface))",
-              padding: 16,
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <h3 style={{ margin: 0, color: "var(--color-cream)", fontFamily: "var(--font-sans)", fontSize: 24 }}>Post Details</h3>
-              <button onClick={closeDetail} style={{ border: "none", background: "transparent", color: "var(--color-cream)", fontSize: 24, lineHeight: 1 }}>×</button>
-            </div>
-
-            {detailLoading && <p style={panelEmptyStyle}>Loading post details...</p>}
-            {detailError && <p style={{ ...panelEmptyStyle, color: "var(--color-danger)" }}>{detailError}</p>}
-
-            {detailPost && (
-              <>
-                <div style={{ border: "1px solid var(--color-border)", borderRadius: 12, padding: 12, background: "color-mix(in srgb, var(--color-ink) 18%, transparent)" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <span style={statusChipStyle(detailPost.status === "scheduled" ? "scheduled" : "draft")}>{detailPost.status}</span>
-                    {detailPost.scheduled_for && (
-                      <span style={rowSecondaryTextStyle}>Scheduled {fmtShortDate(detailPost.scheduled_for)}</span>
-                    )}
-                  </div>
-                  <p style={{ margin: 0, color: "var(--color-cream)", fontSize: 20, lineHeight: 1.35, fontFamily: "var(--font-sans)", whiteSpace: "pre-wrap" }}>
-                    {detailPost.content}
-                  </p>
-                </div>
-
-                <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  <button onClick={refreshDetail} style={detailButtonStyle(false)}>Reload</button>
-                  {detailPost.status === "scheduled" && !detailPost.is_deleted && (
-                    <button onClick={() => { void actionEditContent(); }} style={detailButtonStyle(false)}>Edit content</button>
-                  )}
-                  {detailPost.status === "scheduled" && !detailPost.is_deleted && (
-                    <button onClick={() => setScheduleTargetPostId(detailPost.id)} style={detailButtonStyle(false)}>Change time</button>
-                  )}
-                  {(detailPost.status === "draft" || detailPost.status === "scheduled" || detailPost.status === "failed") && !detailPost.is_deleted && (
-                    <button onClick={() => { void actionEditContent(); }} style={detailButtonStyle(false)}>Quick edit</button>
-                  )}
-                  <button
-                    onClick={() => { void actionDelete(); }}
-                    disabled={deleting || detailPost.is_deleted}
-                    style={{
-                      ...detailButtonStyle(deleting || detailPost.is_deleted),
-                      border: "1px solid color-mix(in srgb, var(--color-danger) 45%, transparent)",
-                      color: "var(--color-danger)",
-                    }}
-                  >
-                    {deleting ? "Deleting..." : "Delete"}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+      <ConfirmDeleteModal
+        open={!!deleteTarget}
+        busy={deleting}
+        previewText={deleteTarget?.content.slice(0, 120) ?? ""}
+        errorMessage={deleteError}
+        onCancel={() => {
+          setDeleteTarget(null);
+          setDeleteError(null);
+        }}
+        onConfirm={() => {
+          void confirmDelete();
+        }}
+      />
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 18 }}>
         <div>

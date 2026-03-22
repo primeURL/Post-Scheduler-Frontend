@@ -8,6 +8,7 @@ import type {
   PostMedia,
   UploadUrlResponse,
 } from "../lib/types";
+import ConfirmDeleteModal from "./ConfirmDeleteModal";
 import SchedulePickerModal from "./SchedulePickerModal";
 
 function fmtDateTime(value: string | null): string {
@@ -110,6 +111,7 @@ export default function AnalyticsDashboard() {
   const [editComposer, setEditComposer] = useState<EditComposerState | null>(null);
   const [scheduleEditorPostId, setScheduleEditorPostId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [detailPostId, setDetailPostId] = useState<string | null>(null);
   const [detailPost, setDetailPost] = useState<Post | null>(null);
   const [detailQuoteSourcePost, setDetailQuoteSourcePost] = useState<Post | null>(null);
@@ -173,10 +175,25 @@ export default function AnalyticsDashboard() {
   };
 
   const deletePost = async (postId: string) => {
-    await withBusy(`delete:${postId}`, async () => {
+    const key = `delete:${postId}`;
+    setBusy((prev) => ({ ...prev, [key]: true }));
+    try {
       await api.delete(`/posts/${postId}`);
       await load();
-    });
+    } finally {
+      setBusy((prev) => ({ ...prev, [key]: false }));
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    try {
+      await deletePost(deleteConfirm.postId);
+      setDeleteError(null);
+      setDeleteConfirm(null);
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "Delete failed.");
+    }
   };
 
   const repostPost = async (postId: string) => {
@@ -391,7 +408,7 @@ export default function AnalyticsDashboard() {
   };
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-4 py-8" style={{ animation: "var(--animate-fade-up)" }}>
+    <div className="w-full max-w-6xl mx-auto h-full min-h-0 flex flex-col px-4 py-2" style={{ animation: "var(--animate-fade-up)" }}>
       {quoteComposer && (
         <QuoteComposerModal
           isClosing={quoteComposerClosing}
@@ -448,13 +465,17 @@ export default function AnalyticsDashboard() {
       )}
 
       {deleteConfirm && (
-        <DeleteConfirmModal
-          content={deleteConfirm.content}
+        <ConfirmDeleteModal
+          open={!!deleteConfirm}
           busy={!!busy[`delete:${deleteConfirm.postId}`]}
-          onClose={() => setDeleteConfirm(null)}
-          onConfirm={() => {
-            void deletePost(deleteConfirm.postId);
+          previewText={preview(deleteConfirm.content)}
+          errorMessage={deleteError}
+          onCancel={() => {
             setDeleteConfirm(null);
+            setDeleteError(null);
+          }}
+          onConfirm={() => {
+            void confirmDelete();
           }}
         />
       )}
@@ -495,6 +516,7 @@ export default function AnalyticsDashboard() {
           }}
           onDelete={() => {
             if (!detailPost) return;
+            setDeleteError(null);
             setDeleteConfirm({ postId: detailPost.id, content: detailPost.content });
           }}
           onRepost={() => {
@@ -587,6 +609,8 @@ export default function AnalyticsDashboard() {
           </div>
         ))}
       </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
 
       {loading && (
         <p style={{ color: "var(--color-muted)", fontFamily: "var(--font-mono)", fontSize: 13, padding: 24 }}>Loading analytics...</p>
@@ -945,6 +969,7 @@ export default function AnalyticsDashboard() {
                       <button
                         onClick={() => {
                           setActiveMenuPostId(null);
+                          setDeleteError(null);
                           setDeleteConfirm({
                             postId: row.post_id,
                             content: row.content,
@@ -970,6 +995,7 @@ export default function AnalyticsDashboard() {
       <p style={{ marginTop: 14, fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--color-muted)" }}>
         Analytics snapshots are saved by the backend cron job every 6 hours to reduce read API usage.
       </p>
+      </div>
     </div>
   );
 }
@@ -1059,96 +1085,6 @@ function EditPostModal({
             }}
           >
             {busy ? "Saving..." : "Save"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DeleteConfirmModal({
-  content,
-  busy,
-  onClose,
-  onConfirm,
-}: {
-  content: string;
-  busy: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-}) {
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 80,
-        background: "rgba(2, 6, 14, 0.72)",
-        backdropFilter: "blur(6px)",
-        display: "grid",
-        placeItems: "center",
-        padding: 20,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "min(620px, 100%)",
-          borderRadius: 16,
-          border: "1px solid var(--color-border)",
-          background: "var(--color-surface)",
-          padding: 16,
-        }}
-      >
-        <h3 style={{ margin: 0, color: "var(--color-cream)", fontFamily: "var(--font-sans)", fontSize: 24 }}>
-          Delete this post?
-        </h3>
-        <p style={{ marginTop: 8, marginBottom: 0, color: "var(--color-muted)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
-          This post will be marked as deleted and hidden from active views.
-        </p>
-        <p style={{ marginTop: 10, color: "var(--color-cream)", fontFamily: "var(--font-sans)", fontSize: 18 }}>
-          {preview(content)}
-        </p>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
-          <button
-            onClick={onClose}
-            style={{
-              borderRadius: 999,
-              border: "1px solid var(--color-border)",
-              background: "transparent",
-              color: "var(--color-cream)",
-              padding: "8px 14px",
-              fontFamily: "var(--font-mono)",
-              fontSize: 12,
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={busy}
-            style={{
-              borderRadius: 999,
-              border: "none",
-              background: "var(--color-danger)",
-              color: "#10141b",
-              padding: "8px 16px",
-              fontFamily: "var(--font-sans)",
-              fontWeight: 700,
-              fontSize: 15,
-              opacity: busy ? 0.6 : 1,
-            }}
-          >
-            {busy ? "Deleting..." : "Yes, delete"}
           </button>
         </div>
       </div>
