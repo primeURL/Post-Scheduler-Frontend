@@ -241,15 +241,7 @@ export default function DashboardOverview() {
         }}
       />
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 18 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 30, color: "var(--color-cream)", fontFamily: "var(--font-sans)", letterSpacing: "-0.02em" }}>
-            Dashboard
-          </h1>
-          <p style={{ marginTop: 6, color: "var(--color-muted)", fontSize: 13, fontFamily: "var(--font-mono)" }}>
-            Live overview of posting volume, engagement, schedule queue, and drafts.
-          </p>
-        </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "flex-start", gap: 16, marginBottom: 18 }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <a href="/compose" style={quickLinkStyle(true)}>Compose</a>
           <a href="/calendar" style={quickLinkStyle(false)}>Calendar</a>

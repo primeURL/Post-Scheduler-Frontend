@@ -1,6 +1,24 @@
 import { $accessToken } from "../stores/auth";
 
 const API_BASE = import.meta.env.PUBLIC_API_URL ?? "http://localhost:8000";
+const DEFAULT_GET_CACHE_TTL_MS = 20_000;
+
+interface CacheEntry {
+  value: unknown;
+  expiresAt: number;
+}
+
+const getResponseCache = new Map<string, CacheEntry>();
+const inFlightGetRequests = new Map<string, Promise<unknown>>();
+
+function buildCacheKey(path: string, token: string | null): string {
+  return `${token ?? "anon"}::${path}`;
+}
+
+function clearApiCache(): void {
+  getResponseCache.clear();
+  inFlightGetRequests.clear();
+}
 
 function getAccessToken(): string | null {
   const inMemory = $accessToken.get();
@@ -67,11 +85,54 @@ async function request<T>(path: string, init: RequestInit = {}, allowRetry = tru
 }
 
 export const api = {
-  get:    <T>(path: string) => request<T>(path),
-  post:   <T>(path: string, body: unknown) =>
-    request<T>(path, { method: "POST",   body: JSON.stringify(body) }),
-  patch:  <T>(path: string, body: unknown) =>
-    request<T>(path, { method: "PATCH",  body: JSON.stringify(body) }),
-  delete: (path: string) =>
-    request<void>(path, { method: "DELETE" }),
+  get: async <T>(path: string, options?: { force?: boolean; cacheTtlMs?: number }) => {
+    const force = options?.force ?? false;
+    const ttlMs = options?.cacheTtlMs ?? DEFAULT_GET_CACHE_TTL_MS;
+    const token = getAccessToken();
+    const cacheKey = buildCacheKey(path, token);
+    const now = Date.now();
+
+    if (!force) {
+      const cached = getResponseCache.get(cacheKey);
+      if (cached && cached.expiresAt > now) {
+        return cached.value as T;
+      }
+      const inFlight = inFlightGetRequests.get(cacheKey);
+      if (inFlight) {
+        return (await inFlight) as T;
+      }
+    }
+
+    const fetchPromise = request<T>(path)
+      .then((data) => {
+        if (ttlMs > 0) {
+          getResponseCache.set(cacheKey, {
+            value: data,
+            expiresAt: Date.now() + ttlMs,
+          });
+        }
+        return data;
+      })
+      .finally(() => {
+        inFlightGetRequests.delete(cacheKey);
+      });
+
+    inFlightGetRequests.set(cacheKey, fetchPromise as Promise<unknown>);
+    return fetchPromise;
+  },
+  post: async <T>(path: string, body: unknown) => {
+    const result = await request<T>(path, { method: "POST", body: JSON.stringify(body) });
+    clearApiCache();
+    return result;
+  },
+  patch: async <T>(path: string, body: unknown) => {
+    const result = await request<T>(path, { method: "PATCH", body: JSON.stringify(body) });
+    clearApiCache();
+    return result;
+  },
+  delete: async (path: string) => {
+    const result = await request<void>(path, { method: "DELETE" });
+    clearApiCache();
+    return result;
+  },
 };

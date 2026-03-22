@@ -2,6 +2,7 @@
 import { ClientRouter } from "astro:transitions";
 import Sidebar from "../components/Sidebar";
 import HeaderUser from "../components/HeaderUser";
+import PageTitle from "../components/PageTitle";
 
 interface Props {
   title?: string;
@@ -40,19 +41,12 @@ const {
       <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
 
         <!-- Top header -->
-        <header class="flex items-center justify-between border-b border-border bg-surface px-6 py-3 shrink-0">
-          <div class="hidden md:flex">
-            <label class="relative flex items-center">
-              <span class="material-symbols-outlined absolute left-3 text-muted" style="font-size:18px;">search</span>
-              <input
-                class="h-9 w-64 rounded-lg border border-border bg-ink/60 pl-10 text-sm text-cream placeholder-muted focus:outline-none focus:ring-1 focus:ring-primary/60"
-                placeholder="Search posts, assets..."
-              />
-            </label>
-          </div>
-          <!-- On small screens show a spacer so right icons stay flush -->
-          <div class="md:hidden"></div>
+        <header class="flex items-center justify-between border-b border-border bg-surface px-6 shrink-0" style="height: 56px;">
 
+          <!-- Page title — replaces the search bar -->
+          <PageTitle client:only="react" transition:persist />
+
+          <!-- Right actions -->
           <div class="flex items-center gap-3">
             <button
               class="flex size-9 items-center justify-center rounded-lg border border-border bg-elevated text-muted hover:text-cream hover:border-accent/40 transition-colors"
@@ -68,6 +62,7 @@ const {
             </button>
             <HeaderUser client:only="react" />
           </div>
+
         </header>
 
         <!-- Page content -->

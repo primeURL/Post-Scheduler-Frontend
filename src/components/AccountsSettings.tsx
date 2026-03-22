@@ -83,14 +83,6 @@ export default function AccountsSettings() {
   return (
     <div className="px-6 py-8 max-w-6xl mx-auto w-full">
 
-      {/* Page header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-black tracking-tight text-cream">Settings</h1>
-        <p className="text-sm text-muted mt-1">
-          Manage your profile, connected accounts, and platform preferences.
-        </p>
-      </div>
-
       <div className="flex flex-col md:flex-row gap-8">
 
         {/* ── Sidebar nav ── */}

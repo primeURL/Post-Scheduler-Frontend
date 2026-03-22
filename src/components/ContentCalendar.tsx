@@ -714,25 +714,12 @@ export default function ContentCalendar() {
         style={{
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
+          justifyContent: "flex-end",
           marginBottom: 24,
           flexWrap: "wrap",
           gap: 12,
         }}
       >
-        <h1
-          style={{
-            fontSize: 22,
-            fontWeight: 700,
-            letterSpacing: "-0.02em",
-            color: "var(--color-cream)",
-            fontFamily: "var(--font-sans)",
-            margin: 0,
-          }}
-        >
-          Content Calendar
-        </h1>
-
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {!isCurrentMonth && (
             <button

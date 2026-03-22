@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
+import "../styles/analytics.css";
 import type {
   DownloadUrlResponse,
   Post,
@@ -47,27 +48,6 @@ function initials(content: string): string {
   return words.map((w) => w[0].toUpperCase()).join("");
 }
 
-function badgeStyle(status: string, isDeleted: boolean): React.CSSProperties {
-  if (isDeleted) {
-    return {
-      color: "var(--color-danger)",
-      border: "1px solid color-mix(in srgb, var(--color-danger) 45%, transparent)",
-      background: "color-mix(in srgb, var(--color-danger) 12%, transparent)",
-    };
-  }
-  if (status === "published") {
-    return {
-      color: "var(--color-success)",
-      border: "1px solid color-mix(in srgb, var(--color-success) 45%, transparent)",
-      background: "color-mix(in srgb, var(--color-success) 12%, transparent)",
-    };
-  }
-  return {
-    color: "var(--color-accent)",
-    border: "1px solid color-mix(in srgb, var(--color-accent) 45%, transparent)",
-    background: "color-mix(in srgb, var(--color-accent) 12%, transparent)",
-  };
-}
 
 type BusyState = Record<string, boolean>;
 
@@ -103,8 +83,15 @@ export default function AnalyticsDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<BusyState>({});
-  const [activeFilter, setActiveFilter] = useState<AnalyticsFilter>("all");
+  const [activeFilter, setActiveFilter] = useState<AnalyticsFilter>("published");
   const [activeMenuPostId, setActiveMenuPostId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!activeMenuPostId) return;
+    const handleGlobalClick = () => setActiveMenuPostId(null);
+    window.addEventListener("click", handleGlobalClick);
+    return () => window.removeEventListener("click", handleGlobalClick);
+  }, [activeMenuPostId]);
   const [quoteComposer, setQuoteComposer] = useState<QuoteComposerState | null>(null);
   const [quoteComposerClosing, setQuoteComposerClosing] = useState(false);
   const [showQuoteSchedulePicker, setShowQuoteSchedulePicker] = useState(false);
@@ -119,6 +106,27 @@ export default function AnalyticsDashboard() {
   const [detailMediaUrls, setDetailMediaUrls] = useState<Record<string, string>>({});
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [cooldowns, setCooldowns] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCooldowns((prev) => {
+        const next = { ...prev };
+        let changed = false;
+        for (const key in next) {
+          if (next[key] > 0) {
+            next[key] -= 1;
+            changed = true;
+          } else {
+            delete next[key];
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
@@ -145,6 +153,18 @@ export default function AnalyticsDashboard() {
     );
   }, [filteredRows]);
 
+  const tabCounts = useMemo(() => {
+    const counts = { all: 0, published: 0, draft: 0, deleted: 0, scheduled: 0 };
+    for (const row of rows) {
+      counts.all++;
+      if (row.is_deleted) { counts.deleted++; }
+      else if (row.status === "published") { counts.published++; }
+      else if (row.status === "draft") { counts.draft++; }
+      else if (row.status === "scheduled") { counts.scheduled++; }
+    }
+    return counts;
+  }, [rows]);
+
   const load = async () => {
     setLoading(true);
     setError(null);
@@ -169,6 +189,7 @@ export default function AnalyticsDashboard() {
       await fn();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Action failed");
+      throw e;
     } finally {
       setBusy((prev) => ({ ...prev, [key]: false }));
     }
@@ -303,10 +324,23 @@ export default function AnalyticsDashboard() {
   };
 
   const refreshPost = async (postId: string) => {
-    await withBusy(`refresh:${postId}`, async () => {
-      await api.post(`/analytics/posts/${postId}/refresh`, {});
-      await load();
-    });
+    try {
+      await withBusy(`refresh:${postId}`, async () => {
+        await api.post(`/analytics/posts/${postId}/refresh`, {});
+        await load();
+      });
+    } catch (e: any) {
+      if (e?.response?.status === 429 || e?.message?.includes("Try again in")) {
+        const match = e.message.match(/Try again in (\d+)/);
+        if (match) {
+          const seconds = parseInt(match[1], 10);
+          setCooldowns((prev) => ({ ...prev, [postId]: seconds }));
+          setError(null); // Clear global error so it doesn't block the feed
+          return;
+        }
+      }
+      setError(e instanceof Error ? e.message : "An error occurred.");
+    }
   };
 
   const saveEditedContent = async () => {
@@ -528,62 +562,30 @@ export default function AnalyticsDashboard() {
             void refreshPost(detailPost.id);
           }}
           busy={busy}
+          cooldown={detailPost ? cooldowns[detailPost.id] : 0}
         />
       )}
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, gap: 12 }}>
-        <h1
-          style={{
-            fontSize: 22,
-            fontWeight: 700,
-            letterSpacing: "-0.02em",
-            color: "var(--color-cream)",
-            fontFamily: "var(--font-sans)",
-            margin: 0,
-          }}
-        >
-          Analytics
-        </h1>
-      </div>
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          marginBottom: 16,
-          border: "1px solid color-mix(in srgb, var(--color-accent) 18%, var(--color-border))",
-          background: "color-mix(in srgb, var(--color-ink) 22%, transparent)",
-          borderRadius: 14,
-          padding: 8,
-        }}
-      >
+      <div className="analytics-tab-bar" style={{ marginBottom: 20 }}>
         {[
-          { key: "all", label: "All" },
-          { key: "published", label: "Published" },
-          { key: "draft", label: "Drafts" },
-          { key: "deleted", label: "Deleted" },
-          { key: "scheduled", label: "Scheduled" },
+          { key: "published", label: "Published", icon: "✓" },
+          { key: "scheduled", label: "Scheduled", icon: "◷" },
+          { key: "draft", label: "Drafts", icon: "✎" },
+          { key: "deleted", label: "Deleted", icon: "✕" },
+          { key: "all", label: "All", icon: "⊞" },
         ].map((item) => {
           const selected = activeFilter === item.key;
+          const count = tabCounts[item.key as keyof typeof tabCounts];
           return (
             <button
               key={item.key}
               onClick={() => setActiveFilter(item.key as AnalyticsFilter)}
-              style={{
-                borderRadius: 12,
-                border: selected ? "1px solid color-mix(in srgb, var(--color-accent) 45%, transparent)" : "1px solid transparent",
-                background: selected ? "color-mix(in srgb, var(--color-accent) 16%, transparent)" : "transparent",
-                color: selected ? "var(--color-cream)" : "var(--color-muted)",
-                padding: "9px 14px",
-                fontSize: 12,
-                fontFamily: "var(--font-mono)",
-                fontWeight: 700,
-                letterSpacing: "0.03em",
-                textTransform: "uppercase",
-              }}
+              className={`analytics-tab${selected ? " analytics-tab--active" : ""}`}
             >
+              <span style={{ marginRight: 4, fontSize: 11 }}>{item.icon}</span>
               {item.label}
+              <span className="tab-count">{count}</span>
             </button>
           );
         })}
@@ -593,19 +595,23 @@ export default function AnalyticsDashboard() {
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 10,
-          marginBottom: 16,
+          gap: 12,
+          marginBottom: 20,
         }}
       >
         {[
-          { label: "Total Impressions", value: totals.impressions },
-          { label: "Total Likes", value: totals.likes },
-          { label: "Total Reposts", value: totals.reposts },
-          { label: "Total Replies", value: totals.replies },
-        ].map((item) => (
-          <div key={item.label} style={{ border: "1px solid var(--color-border)", borderRadius: 12, padding: "12px 14px", background: "var(--color-elevated)" }}>
-            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-muted)", fontFamily: "var(--font-mono)" }}>{item.label}</div>
-            <div style={{ marginTop: 6, color: "var(--color-cream)", fontSize: 22, fontFamily: "var(--font-mono)", fontWeight: 700 }}>{fmtBig(item.value)}</div>
+          { label: "Impressions", value: totals.impressions, accent: "var(--color-accent)", icon: "👁" },
+          { label: "Likes", value: totals.likes, accent: "var(--color-success)", icon: "♥" },
+          { label: "Reposts", value: totals.reposts, accent: "var(--color-amber)", icon: "↻" },
+          { label: "Replies", value: totals.replies, accent: "var(--color-muted)", icon: "💬" },
+        ].map((item, i) => (
+          <div key={item.label} className="analytics-metric-card">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-muted)", fontFamily: "var(--font-mono)" }}>{item.label}</div>
+              <span style={{ fontSize: 16, opacity: 0.5 }}>{item.icon}</span>
+            </div>
+            <div className="metric-value" style={{ marginTop: 8, color: "var(--color-cream)", fontSize: 26, fontFamily: "var(--font-mono)", fontWeight: 700, animationDelay: `${i * 0.08}s` }}>{fmtBig(item.value)}</div>
+            <div style={{ marginTop: 10, height: 3, borderRadius: 999, background: `linear-gradient(90deg, ${item.accent}, transparent)`, opacity: 0.5 }} />
           </div>
         ))}
       </div>
@@ -613,26 +619,36 @@ export default function AnalyticsDashboard() {
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
 
       {loading && (
-        <p style={{ color: "var(--color-muted)", fontFamily: "var(--font-mono)", fontSize: 13, padding: 24 }}>Loading analytics...</p>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: 48 }}>
+          <div style={{ width: 20, height: 20, borderRadius: 999, border: "2px solid var(--color-border)", borderTopColor: "var(--color-accent)", animation: "spin 0.8s linear infinite" }} />
+          <span style={{ color: "var(--color-muted)", fontFamily: "var(--font-mono)", fontSize: 13 }}>Loading analytics...</span>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
       )}
 
       {error && (
-        <p style={{ color: "var(--color-danger)", fontFamily: "var(--font-mono)", fontSize: 13, padding: 24 }}>{error}</p>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 12, border: "1px solid color-mix(in srgb, var(--color-danger) 40%, transparent)", background: "color-mix(in srgb, var(--color-danger) 8%, transparent)", color: "var(--color-danger)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+          <span style={{ fontSize: 16 }}>⚠</span> {error}
+        </div>
       )}
 
       {!loading && !error && filteredRows.length === 0 && (
-        <div style={{ border: "1px solid var(--color-border)", borderRadius: 12, padding: 24, background: "var(--color-elevated)", color: "var(--color-muted)", fontFamily: "var(--font-mono)" }}>
-          No posts found.
+        <div className="analytics-empty-state" style={{ border: "1px solid var(--color-border)", borderRadius: 20, background: "var(--color-elevated)" }}>
+          <span className="empty-icon">📊</span>
+          <div style={{ color: "var(--color-cream)", fontSize: 16, fontWeight: 600 }}>No posts found</div>
+          <div style={{ color: "var(--color-muted)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+            {activeFilter === "published" ? "No published posts yet. Start composing!" : `No ${activeFilter} posts to display.`}
+          </div>
         </div>
       )}
 
       {!loading && !error && filteredRows.length > 0 && (
         <div
           style={{
-            border: "1px solid color-mix(in srgb, var(--color-accent) 20%, var(--color-border))",
+            border: "1px solid color-mix(in srgb, var(--color-accent) 15%, var(--color-border))",
             borderRadius: 20,
             background:
-              "linear-gradient(180deg, color-mix(in srgb, var(--color-accent) 8%, var(--color-elevated)) 0%, var(--color-elevated) 100%)",
+              "linear-gradient(180deg, color-mix(in srgb, var(--color-accent) 4%, var(--color-elevated)) 0%, var(--color-elevated) 100%)",
             overflow: "hidden",
           }}
         >
@@ -641,25 +657,27 @@ export default function AnalyticsDashboard() {
               display: "grid",
               gridTemplateColumns: "2.4fr 1fr 1fr 1fr 0.7fr",
               gap: 12,
-              padding: "16px 18px",
+              padding: "14px 20px",
               borderBottom: "1px solid var(--color-border)",
+              background: "color-mix(in srgb, var(--color-ink) 25%, transparent)",
             }}
           >
             {[
               "Post Content",
-              "Type",
+              "Status",
               "Impressions",
               "Engagement",
-              "Action",
+              "",
             ].map((head) => (
               <span
-                key={head}
+                key={head || "action"}
                 style={{
-                  fontSize: 11,
+                  fontSize: 10,
                   fontFamily: "var(--font-mono)",
-                  color: "color-mix(in srgb, var(--color-cream) 60%, var(--color-muted))",
+                  color: "var(--color-muted)",
                   letterSpacing: "0.08em",
                   textTransform: "uppercase",
+                  fontWeight: 600,
                 }}
               >
                 {head}
@@ -676,9 +694,12 @@ export default function AnalyticsDashboard() {
             const busyReschedule = !!busy[`reschedule:${row.post_id}`];
             const hidePerformance = row.status === "scheduled" || row.status === "draft";
 
+            const statusClass = row.is_deleted ? "deleted" : row.status;
+
             return (
               <div
                 key={row.post_id}
+                className="analytics-post-card"
                 onClick={() => {
                   if (row.status === "draft" && !row.is_deleted) {
                     window.location.href = `/compose?draft_post_id=${encodeURIComponent(row.post_id)}`;
@@ -687,33 +708,20 @@ export default function AnalyticsDashboard() {
                   void openPostDetail(row.post_id);
                 }}
                 style={{
-                  display: "grid",
                   gridTemplateColumns: "2.4fr 1fr 1fr 1fr 0.7fr",
                   gap: 12,
-                  padding: "16px 18px",
-                  borderBottom: idx < filteredRows.length - 1 ? "1px solid var(--color-border)" : "none",
-                  alignItems: "center",
-                  background:
-                    idx % 2 === 0
-                      ? "color-mix(in srgb, var(--color-ink) 18%, transparent)"
-                      : "transparent",
-                  cursor: "pointer",
+                  padding: "14px 20px",
+                  animationDelay: `${idx * 0.04}s`,
+                  zIndex: activeMenuPostId === row.post_id ? 50 : 1,
+                  position: "relative",
                 }}
               >
-                <div style={{ display: "flex", gap: 14, minWidth: 0, alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 12, minWidth: 0, alignItems: "center" }}>
                   <div
+                    className="post-card-avatar"
                     style={{
-                      width: 52,
-                      height: 52,
-                      borderRadius: 12,
-                      flexShrink: 0,
-                      display: "grid",
-                      placeItems: "center",
-                      fontFamily: "var(--font-mono)",
-                      fontSize: 12,
-                      color: "var(--color-cream)",
                       background:
-                        "linear-gradient(140deg, color-mix(in srgb, var(--color-accent) 75%, transparent), color-mix(in srgb, var(--color-amber) 75%, transparent))",
+                        "linear-gradient(140deg, color-mix(in srgb, var(--color-accent) 80%, transparent), color-mix(in srgb, var(--color-amber) 70%, transparent))",
                     }}
                   >
                     {initials(row.content)}
@@ -722,9 +730,9 @@ export default function AnalyticsDashboard() {
                     <div
                       style={{
                         color: "var(--color-cream)",
-                        fontSize: 22,
+                        fontSize: 14,
                         fontWeight: 600,
-                        lineHeight: 1.1,
+                        lineHeight: 1.3,
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
@@ -734,13 +742,13 @@ export default function AnalyticsDashboard() {
                     </div>
                     <div
                       style={{
-                        marginTop: 4,
+                        marginTop: 3,
                         color: "var(--color-muted)",
-                        fontSize: 12,
+                        fontSize: 11,
                         fontFamily: "var(--font-mono)",
                         display: "flex",
                         alignItems: "center",
-                        gap: 8,
+                        gap: 6,
                       }}
                     >
                       <span>
@@ -752,13 +760,13 @@ export default function AnalyticsDashboard() {
                           style={{
                             display: "inline-flex",
                             alignItems: "center",
-                            gap: 4,
+                            gap: 3,
                             borderRadius: 999,
                             border: "1px solid color-mix(in srgb, var(--color-success) 35%, transparent)",
                             background: "color-mix(in srgb, var(--color-success) 10%, transparent)",
                             color: "var(--color-success)",
-                            padding: "2px 7px",
-                            fontSize: 10,
+                            padding: "1px 6px",
+                            fontSize: 9,
                           }}
                         >
                           ↻ reposted
@@ -770,13 +778,13 @@ export default function AnalyticsDashboard() {
                           style={{
                             display: "inline-flex",
                             alignItems: "center",
-                            gap: 4,
+                            gap: 3,
                             borderRadius: 999,
                             border: "1px solid color-mix(in srgb, var(--color-accent) 35%, transparent)",
                             background: "color-mix(in srgb, var(--color-accent) 10%, transparent)",
                             color: "var(--color-accent)",
-                            padding: "2px 7px",
-                            fontSize: 10,
+                            padding: "1px 6px",
+                            fontSize: 9,
                           }}
                         >
                           💬 quoted
@@ -787,73 +795,37 @@ export default function AnalyticsDashboard() {
                 </div>
 
                 <div>
-                  <span
-                    style={{
-                      ...badgeStyle(row.status, row.is_deleted),
-                      display: "inline-block",
-                      padding: "6px 10px",
-                      borderRadius: 8,
-                      fontSize: 12,
-                      fontFamily: "var(--font-mono)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.03em",
-                    }}
-                  >
+                  <span className={`post-status-badge post-status-badge--${statusClass}`}>
                     {row.is_deleted ? "Deleted" : row.status}
                   </span>
                 </div>
 
                 <div>
                   {hidePerformance ? (
-                    <div
-                      style={{
-                        color: "var(--color-muted)",
-                        fontFamily: "var(--font-mono)",
-                        fontWeight: 700,
-                        fontSize: 28,
-                        lineHeight: 1,
-                      }}
-                    >
-                      —
-                    </div>
+                    <div style={{ color: "var(--color-muted)", fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 16 }}>—</div>
                   ) : (
                     <>
-                      <div
-                        style={{
-                          color: "var(--color-cream)",
-                          fontFamily: "var(--font-mono)",
-                          fontWeight: 700,
-                          fontSize: 38,
-                          lineHeight: 1,
-                        }}
-                      >
+                      <div style={{ color: "var(--color-cream)", fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 20, lineHeight: 1 }}>
                         {fmtBig(row.impression_count)}
                       </div>
-                      <div
-                        style={{
-                          marginTop: 4,
-                          color: "var(--color-success)",
-                          fontSize: 14,
-                          fontFamily: "var(--font-mono)",
-                        }}
-                      >
+                      <div style={{ marginTop: 3, color: "var(--color-success)", fontSize: 11, fontFamily: "var(--font-mono)" }}>
                         {engagementRate(row)} rate
                       </div>
                     </>
                   )}
                 </div>
 
-                <div style={{ display: "flex", gap: 14, alignItems: "center", color: "var(--color-cream)", fontFamily: "var(--font-mono)", fontSize: 30 }}>
+                <div style={{ display: "flex", gap: 12, alignItems: "center", color: "var(--color-cream)", fontFamily: "var(--font-mono)", fontSize: 14 }}>
                   {hidePerformance ? (
-                    <span style={{ color: "var(--color-muted)", fontSize: 28 }}>—</span>
+                    <span style={{ color: "var(--color-muted)", fontSize: 16 }}>—</span>
                   ) : (
                     <>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ fontSize: 22, opacity: 0.9 }}>♥</span>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        <span style={{ fontSize: 14, opacity: 0.8, color: "var(--color-danger)" }}>♥</span>
                         {fmtBig(row.like_count)}
                       </span>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ fontSize: 20, opacity: 0.9 }}>💬</span>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        <span style={{ fontSize: 13, opacity: 0.8 }}>💬</span>
                         {fmtBig(row.reply_count)}
                       </span>
                     </>
@@ -867,121 +839,107 @@ export default function AnalyticsDashboard() {
                       setActiveMenuPostId((current) => (current === row.post_id ? null : row.post_id));
                     }}
                     style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 10,
+                      width: 38,
+                      height: 38,
+                      borderRadius: 11,
                       border: "1px solid var(--color-border)",
-                      background: "color-mix(in srgb, var(--color-ink) 35%, transparent)",
+                      background: "var(--color-elevated)",
                       color: "var(--color-cream)",
-                      fontSize: 20,
-                      lineHeight: 1,
+                      fontSize: 22,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "all 0.15s ease",
                     }}
                     aria-label="Open actions"
                   >
-                    ...
+                    ⋯
                   </button>
 
                   {activeMenuPostId === row.post_id && (
                     <div
                       onClick={(e) => e.stopPropagation()}
-                      style={{
-                        position: "absolute",
-                        right: 0,
-                        top: 42,
-                        zIndex: 10,
-                        width: 152,
-                        borderRadius: 10,
-                        border: "1px solid var(--color-border)",
-                        background: "var(--color-surface)",
-                        padding: 6,
-                        display: "grid",
-                        gap: 4,
-                        boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
-                      }}
+                      className="analytics-action-menu"
                     >
                       {canPublishedAction(row) && (
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (cooldowns[row.post_id]) return;
                             setActiveMenuPostId(null);
                             void refreshPost(row.post_id);
                           }}
-                          disabled={busyRefresh}
-                          style={actionButtonStyle(busyRefresh)}
+                          disabled={busyRefresh || !!cooldowns[row.post_id]}
+                          className="analytics-action-btn"
+                          style={{ opacity: cooldowns[row.post_id] ? 0.6 : 1 }}
                         >
-                          {busyRefresh ? "Refreshing..." : "Refresh now"}
+                          {busyRefresh ? "Refreshing..." : cooldowns[row.post_id] ? `↻ Wait ${cooldowns[row.post_id]}s` : "↻ Refresh now"}
                         </button>
                       )}
                       {canPublishedAction(row) && (
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setActiveMenuPostId(null);
                             void repostPost(row.post_id);
                           }}
                           disabled={busyRepost}
-                          style={actionButtonStyle(busyRepost)}
+                          className="analytics-action-btn"
                         >
-                          {busyRepost ? (row.has_repost_action ? "Undoing..." : "Reposting...") : (row.has_repost_action ? "Undo repost" : "Repost")}
+                          {busyRepost ? (row.has_repost_action ? "Undoing..." : "Reposting...") : (row.has_repost_action ? "↺ Undo repost" : "↻ Repost")}
                         </button>
                       )}
                       {canPublishedAction(row) && (
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setActiveMenuPostId(null);
-                            setQuoteComposer({
-                              postId: row.post_id,
-                              sourceContent: row.content,
-                              text: "",
-                              scheduledFor: null,
-                              media: null,
-                            });
+                            setQuoteComposer({ postId: row.post_id, sourceContent: row.content, text: "", scheduledFor: null, media: null });
                             setQuoteComposerClosing(false);
                           }}
                           disabled={busyQuote}
-                          style={actionButtonStyle(busyQuote)}
+                          className="analytics-action-btn"
                         >
-                          {busyQuote ? "Quoting..." : "Quote"}
+                          {busyQuote ? "Quoting..." : "💬 Quote"}
                         </button>
                       )}
                       {canScheduledCrud(row) && (
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setActiveMenuPostId(null);
                             openComposeEditor(row.post_id);
                           }}
                           disabled={busyEdit}
-                          style={actionButtonStyle(busyEdit)}
+                          className="analytics-action-btn"
                         >
-                          {busyEdit ? "Saving..." : "Edit content"}
+                          {busyEdit ? "Saving..." : "✎ Edit content"}
                         </button>
                       )}
                       {canScheduledCrud(row) && (
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setActiveMenuPostId(null);
                             setScheduleEditorPostId(row.post_id);
                           }}
                           disabled={busyReschedule}
-                          style={actionButtonStyle(busyReschedule)}
+                          className="analytics-action-btn"
                         >
-                          {busyReschedule ? "Saving..." : "Change time"}
+                          {busyReschedule ? "Saving..." : "◷ Change time"}
                         </button>
                       )}
                       <button
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setActiveMenuPostId(null);
                           setDeleteError(null);
-                          setDeleteConfirm({
-                            postId: row.post_id,
-                            content: row.content,
-                          });
+                          setDeleteConfirm({ postId: row.post_id, content: row.content });
                         }}
                         disabled={row.is_deleted || busyDelete}
-                        style={{
-                          ...actionButtonStyle(row.is_deleted || busyDelete),
-                          color: "var(--color-danger)",
-                        }}
+                        className="analytics-action-btn analytics-action-btn--danger"
                       >
-                        {busyDelete ? "Deleting..." : "Delete"}
+                        {busyDelete ? "Deleting..." : "✕ Delete"}
                       </button>
                     </div>
                   )}
@@ -992,9 +950,10 @@ export default function AnalyticsDashboard() {
         </div>
       )}
 
-      <p style={{ marginTop: 14, fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--color-muted)" }}>
+      <div className="analytics-footer-note">
+        <span style={{ fontSize: 14 }}>ℹ</span>
         Analytics snapshots are saved by the backend cron job every 6 hours to reduce read API usage.
-      </p>
+      </div>
       </div>
     </div>
   );
@@ -1108,6 +1067,7 @@ function PostDetailModal({
   onDelete,
   onRepost,
   onManualRefresh,
+  cooldown = 0,
 }: {
   loading: boolean;
   error: string | null;
@@ -1124,6 +1084,7 @@ function PostDetailModal({
   onDelete: () => void;
   onRepost: () => void;
   onManualRefresh: () => void;
+  cooldown?: number;
 }) {
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
 
@@ -1386,8 +1347,19 @@ function PostDetailModal({
             <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
               <button onClick={onRefresh} style={detailButtonStyle(false)}>Reload</button>
               {isPublished && (
-                <button onClick={onManualRefresh} disabled={!!busy[`refresh:${post.id}`]} style={detailButtonStyle(!!busy[`refresh:${post.id}`])}>
-                  {busy[`refresh:${post.id}`] ? "Refreshing..." : "Refresh now"}
+                <button
+                  onClick={() => {
+                    if (cooldown > 0) return;
+                    onManualRefresh();
+                  }}
+                  disabled={!!busy[`refresh:${post.id}`] || cooldown > 0}
+                  style={{
+                    ...detailButtonStyle(!!busy[`refresh:${post.id}`] || cooldown > 0),
+                    opacity: cooldown > 0 ? 0.6 : 1,
+                    minWidth: 100,
+                  }}
+                >
+                  {busy[`refresh:${post.id}`] ? "Refreshing..." : cooldown > 0 ? `Wait ${cooldown}s` : "Refresh now"}
                 </button>
               )}
               {isPublished && (
@@ -1442,19 +1414,6 @@ function detailButtonStyle(disabled: boolean): React.CSSProperties {
   };
 }
 
-function actionButtonStyle(disabled: boolean): React.CSSProperties {
-  return {
-    textAlign: "left",
-    border: "1px solid var(--color-border)",
-    borderRadius: 8,
-    background: "transparent",
-    color: "var(--color-cream)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 11,
-    padding: "7px 8px",
-    opacity: disabled ? 0.45 : 1,
-  };
-}
 
 function QuoteComposerModal({
   isClosing,
