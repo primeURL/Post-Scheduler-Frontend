@@ -4,6 +4,16 @@ import { signOut } from "firebase/auth";
 import { auth } from "../lib/firebase";
 import { $user, clearAuth, setAuth } from "../stores/auth";
 import { api } from "../lib/api";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  LogOut, 
+  Settings, 
+  User, 
+  ChevronDown, 
+  ExternalLink
+} from "lucide-react";
+import { cn } from "../lib/utils";
+import { Button } from "./ui/Button";
 
 const API_BASE = import.meta.env.PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -19,7 +29,6 @@ export default function HeaderUser() {
   const [signingOut, setSigningOut] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  // Silently try to restore session from refresh token cookie
   useEffect(() => {
     if (user) { setReady(true); return; }
     const csrf = getCsrfToken();
@@ -75,13 +84,13 @@ export default function HeaderUser() {
     try {
       await api.post<void>("/auth/logout", {});
     } catch {
-      // Clear local state even if the session was already invalid.
+      // ignore
     }
 
     try {
       await signOut(auth);
     } catch {
-      // Ignore Firebase sign-out errors so app logout still succeeds.
+      // ignore
     }
 
     clearAuth();
@@ -89,77 +98,115 @@ export default function HeaderUser() {
   }
 
   if (!ready) {
-    // Skeleton placeholder matching the size of the avatar
-    return <div className="size-9 rounded-full bg-primary/10 animate-pulse" />;
+    return <div className="h-10 w-10 rounded-full bg-[var(--color-elevated)] animate-pulse" />;
   }
 
   if (!user) {
     return (
-      <a
-        href="/login"
-        className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold text-white transition-all hover:bg-primary/90"
-        style={{ background: "#7b61ff" }}
+      <Button 
+        variant="default"
+        size="sm"
+        className="px-6 rounded-full font-bold shadow-lg shadow-[var(--color-primary)]/10"
+        asChild
       >
-        Login
-      </a>
+        <a href="/login">Login</a>
+      </Button>
     );
   }
 
   return (
-    <div ref={rootRef} className="relative shrink-0">
+    <div ref={rootRef} className="relative z-50">
       <button
         type="button"
         title={user.name}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className="block"
+        className="flex items-center gap-2 group p-1 pr-3 rounded-full bg-[var(--color-ink)] hover:bg-[var(--color-elevated)] border border-[var(--color-border)]/50 transition-all active:scale-[0.98]"
       >
         {user.avatar_url ? (
           <img
             src={user.avatar_url}
             alt={user.name}
-            className="size-9 rounded-full border-2 border-primary/40 object-cover"
+            className="size-8 rounded-full ring-2 ring-primary/20 object-cover"
           />
         ) : (
-          <div className="size-9 rounded-full border-2 border-primary/30 bg-primary/20 flex items-center justify-center text-primary font-bold text-sm select-none">
+          <div className="size-8 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-accent)] flex items-center justify-center text-white font-bold text-xs">
             {user.name?.[0]?.toUpperCase() ?? "U"}
           </div>
         )}
+        <span className="hidden md:block text-xs font-bold text-[var(--color-cream)] max-w-24 truncate">
+          {user.name}
+        </span>
+        <ChevronDown className={cn("w-3 h-3 text-[var(--color-muted)] transition-transform duration-300", open ? "rotate-180" : "")} />
       </button>
 
-      {open && (
-        <div
-          role="menu"
-          className="absolute right-0 top-[calc(100%+0.75rem)] w-56 rounded-2xl border border-border bg-surface p-2 shadow-2xl"
-          style={{ boxShadow: "0 20px 50px rgba(0,0,0,0.35)" }}
-        >
-          <div className="rounded-xl px-3 py-2">
-            <p className="truncate text-sm font-semibold text-cream">{user.name}</p>
-            <p className="truncate text-xs text-muted">{user.email}</p>
-          </div>
-
-          <a
-            href="/settings/accounts"
-            role="menuitem"
-            className="mt-1 flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-cream transition-colors hover:bg-elevated"
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            role="menu"
+            className="absolute right-0 mt-3 w-64 rounded-2xl border border-[var(--color-border)] bg-[var(--color-ink)]/95 backdrop-blur-xl p-2 shadow-2xl overflow-hidden shadow-black/80"
           >
-            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>manage_accounts</span>
-            Account settings
-          </a>
+            {/* User Profile Header */}
+            <div className="flex items-center gap-3 px-4 py-4 mb-2 border-b border-[var(--color-border)]/50 bg-[var(--color-elevated)]/30 rounded-t-xl">
+              <div className="size-10 rounded-full border border-primary/20 p-0.5">
+                {user.avatar_url ? (
+                  <img src={user.avatar_url} alt={user.name} className="w-full h-full rounded-full object-cover" />
+                ) : (
+                  <div className="w-full h-full rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary">
+                    {user.name?.[0]?.toUpperCase()}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-bold text-[var(--color-cream)] truncate leading-none mb-1">{user.name}</span>
+                <span className="text-[10px] font-mono text-[var(--color-muted)] truncate">{user.email}</span>
+              </div>
+            </div>
 
-          <button
-            type="button"
-            role="menuitem"
-            onClick={handleSignOut}
-            disabled={signingOut}
-            className="mt-1 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-danger transition-colors hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>logout</span>
-            {signingOut ? "Signing out..." : "Sign out"}
-          </button>
-        </div>
-      )}
+            {/* Menu Items */}
+            <div className="space-y-1">
+              <MenuButton href="/settings/accounts" icon={Settings} label="Dashboard Settings" />
+              <MenuButton href="/settings/profile" icon={User} label="Profile Details" />
+              <MenuButton href="#" icon={ExternalLink} label="Help & Support" isExternal />
+            </div>
+
+            <div className="mt-2 pt-2 border-t border-[var(--color-border)]/50">
+              <button
+                type="button"
+                onClick={handleSignOut}
+                disabled={signingOut}
+                className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm text-[var(--color-danger)] font-semibold transition-all hover:bg-[var(--color-danger)]/10 disabled:opacity-50"
+              >
+                <LogOut className="w-4 h-4" />
+                {signingOut ? "Signing out..." : "Sign Out"}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+function MenuButton({ href, icon: Icon, label, isExternal }: { href: string; icon: any; label: string; isExternal?: boolean }) {
+  return (
+    <a
+      href={href}
+      target={isExternal ? "_blank" : undefined}
+      rel={isExternal ? "noopener noreferrer" : undefined}
+      className={cn(
+        "flex items-center justify-between w-full rounded-xl px-4 py-3 text-sm font-semibold text-[var(--color-cream)] transition-all hover:bg-[var(--color-elevated)] group",
+      )}
+    >
+      <div className="flex items-center gap-3">
+        <Icon className="w-4 h-4 text-[var(--color-muted)] group-hover:text-[var(--color-accent)] transition-colors" />
+        {label}
+      </div>
+      {isExternal && <ExternalLink className="w-3 h-3 text-[var(--color-muted)] opacity-50" />}
+    </a>
   );
 }

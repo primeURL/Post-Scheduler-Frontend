@@ -1,5 +1,20 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { Post } from "../lib/types";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  X, 
+  ChevronLeft, 
+  ChevronRight, 
+  Clock, 
+  CheckCircle2, 
+  AlertCircle,
+  FileText,
+  Calendar,
+  Share2
+} from "lucide-react";
+import { cn } from "../lib/utils";
+import { Badge } from "./ui/Badge";
+import { Button } from "./ui/Button";
 
 interface PostDetailsModalProps {
   isOpen: boolean;
@@ -30,10 +45,9 @@ export default function PostDetailsModal({
   children,
   quoteSourceContent,
   zIndex = 75,
-  maxWidth = "980px",
+  maxWidth = "760px",
 }: PostDetailsModalProps) {
-  if (!isOpen) return null;
-
+  
   const media = post?.media ?? [];
   const currentMedia = media[activeMediaIndex] ?? null;
   const currentSrc = currentMedia
@@ -41,266 +55,191 @@ export default function PostDetailsModal({
     : null;
 
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex,
-        background: "rgba(2, 6, 14, 0.75)",
-        backdropFilter: "blur(8px)",
-        display: "grid",
-        placeItems: "center",
-        padding: 20,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: `min(${maxWidth}, 100%)`,
-          maxHeight: "88vh",
-          overflowY: "auto",
-          borderRadius: 18,
-          border: "1px solid var(--color-border)",
-          background:
-            "linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 92%, #000), var(--color-surface))",
-          padding: 16,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 14,
-          }}
+    <AnimatePresence>
+      {isOpen && (
+        <div 
+          className="fixed inset-0 flex items-center justify-center p-4 sm:p-6"
+          style={{ zIndex }}
         >
-          <h3
-            style={{
-              margin: 0,
-              color: "var(--color-cream)",
-              fontFamily: "var(--font-sans)",
-              fontSize: 28,
-            }}
-          >
-            Post Details
-          </h3>
-          <button
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             onClick={onClose}
-            style={{
-              border: "none",
-              background: "transparent",
-              color: "var(--color-cream)",
-              fontSize: 28,
-              lineHeight: 1,
-            }}
-          >
-            ×
-          </button>
-        </div>
+            className="absolute inset-0 bg-[#02060e]/80 backdrop-blur-xl"
+          />
 
-        {loading && (
-          <p
-            style={{
-              color: "var(--color-muted)",
-              fontFamily: "var(--font-mono)",
-              fontSize: 13,
-            }}
+          {/* Modal Content */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            onClick={(e) => e.stopPropagation()}
+            className={cn(
+              "relative w-full overflow-hidden rounded-3xl border border-[var(--color-border)] bg-gradient-to-b from-[var(--color-elevated)] to-[var(--color-ink)] shadow-2xl shadow-black/50 flex flex-col max-h-[90vh]",
+              `max-w-[${maxWidth}]`
+            )}
+            style={{ maxWidth }}
           >
-            Loading post details...
-          </p>
-        )}
-        {error && (
-          <p
-            style={{
-              color: "var(--color-danger)",
-              fontFamily: "var(--font-mono)",
-              fontSize: 13,
-            }}
-          >
-            {error}
-          </p>
-        )}
-
-        {post && (
-          <>
-            <div
-              style={{
-                border: "1px solid var(--color-border)",
-                borderRadius: 14,
-                padding: 14,
-                background:
-                  "color-mix(in srgb, var(--color-ink) 18%, transparent)",
-              }}
-            >
-              <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontFamily: "var(--font-mono)",
-                    color: "var(--color-muted)",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {post.status}
-                </span>
-                {post.scheduled_for && (
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontFamily: "var(--font-mono)",
-                      color: "var(--color-accent)",
-                    }}
-                  >
-                    Scheduled {new Date(post.scheduled_for).toLocaleString()}
-                  </span>
-                )}
-                {post.published_at && (
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontFamily: "var(--font-mono)",
-                      color: "var(--color-success)",
-                    }}
-                  >
-                    Published {new Date(post.published_at).toLocaleString()}
-                  </span>
-                )}
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-[var(--color-border)]/50 shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-[var(--color-accent)]/10 text-[var(--color-accent)]">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <h3 className="text-xl font-bold text-[var(--color-cream)] tracking-tight">Post Details</h3>
               </div>
-
-              <p
-                style={{
-                  margin: 0,
-                  color: "var(--color-cream)",
-                  fontSize: 22,
-                  lineHeight: 1.3,
-                  fontFamily: "var(--font-sans)",
-                  whiteSpace: "pre-wrap",
-                }}
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={onClose} 
+                className="rounded-full hover:bg-[var(--color-elevated)]"
               >
-                {post.content}
-              </p>
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
 
-              {quoteSourceContent && (
-                <div
-                  style={{
-                    marginTop: 12,
-                    borderRadius: 12,
-                    border:
-                      "1px solid color-mix(in srgb, var(--color-accent) 35%, var(--color-border))",
-                    background:
-                      "color-mix(in srgb, var(--color-ink) 28%, transparent)",
-                    padding: 12,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 10,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.08em",
-                      color: "var(--color-accent)",
-                      fontFamily: "var(--font-mono)",
-                      marginBottom: 6,
-                    }}
-                  >
-                    Original post
-                  </div>
-                  <p
-                    style={{
-                      margin: 0,
-                      color: "var(--color-cream)",
-                      fontSize: 16,
-                      lineHeight: 1.35,
-                      fontFamily: "var(--font-sans)",
-                      whiteSpace: "pre-wrap",
-                    }}
-                  >
-                    {quoteSourceContent}
-                  </p>
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+              {loading && (
+                <div className="flex flex-col items-center justify-center py-20 gap-3 text-[var(--color-muted)] font-mono animate-pulse">
+                  <Clock className="w-10 h-10 opacity-20" />
+                  <p className="text-sm uppercase tracking-widest">Loading blueprint...</p>
                 </div>
               )}
 
-              {!!media.length && (
-                <div style={{ marginTop: 12 }}>
-                  {currentMedia && (
-                    <div
-                      style={{
-                        borderRadius: 10,
-                        overflow: "hidden",
-                        border: "1px solid var(--color-border)",
-                        background: "#000",
-                        position: "relative",
-                      }}
-                    >
-                      {currentMedia.content_type?.startsWith("video/") ? (
-                        <video
-                          controls
-                          src={currentSrc ?? undefined}
-                          style={{ width: "100%", maxHeight: 420, objectFit: "contain" }}
-                        />
-                      ) : (
-                        <img
-                          src={currentSrc ?? undefined}
-                          alt={currentMedia.file_name ?? "Post media"}
-                          style={{ width: "100%", maxHeight: 420, objectFit: "contain" }}
-                        />
-                      )}
+              {error && (
+                <div className="flex items-center gap-3 p-4 rounded-xl bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/20 text-[var(--color-danger)]">
+                  <AlertCircle className="w-5 h-5" />
+                  <p className="font-mono text-sm leading-none">{error}</p>
+                </div>
+              )}
 
-                      {media.length > 1 && (
-                        <>
-                          <button
-                            onClick={() =>
-                              onActiveMediaIndexChange(
-                                (activeMediaIndex - 1 + media.length) % media.length,
-                              )
-                            }
-                            style={carouselArrowButton("left")}
-                          >
-                            ‹
-                          </button>
-                          <button
-                            onClick={() =>
-                              onActiveMediaIndexChange((activeMediaIndex + 1) % media.length)
-                            }
-                            style={carouselArrowButton("right")}
-                          >
-                            ›
-                          </button>
-                        </>
+              {post && (
+                <div className="space-y-8">
+                  {/* Status Banner */}
+                  <div className="flex flex-wrap items-center gap-4 bg-[var(--color-ink)]/50 p-4 rounded-2xl border border-[var(--color-border)]/50">
+                    <Badge variant={
+                      post.status === "published" ? "success" : 
+                      post.status === "scheduled" ? "amber" : 
+                      post.status === "failed" ? "destructive" : "outline"
+                    }>
+                      {post.status}
+                    </Badge>
+                    
+                    <div className="flex items-center gap-4 text-xs font-mono text-[var(--color-muted)] divide-x divide-[var(--color-border)]/50">
+                      {post.scheduled_for && (
+                        <span className="flex items-center gap-2 pl-4 first:pl-0">
+                          <Calendar className="w-3.5 h-3.5" />
+                          {new Date(post.scheduled_for).toLocaleString()}
+                        </span>
+                      )}
+                      {post.published_at && (
+                        <span className="flex items-center gap-2 pl-4 first:pl-0">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          {new Date(post.published_at).toLocaleString()}
+                        </span>
                       )}
                     </div>
+                  </div>
+
+                  {/* Content Editor Preview */}
+                  <div className="relative group">
+                    <div className="absolute -inset-2 bg-gradient-to-r from-[var(--color-primary)]/5 to-[var(--color-accent)]/5 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <p className="relative text-xl md:text-2xl font-medium leading-relaxed text-[var(--color-cream)] font-sans whitespace-pre-wrap selection:bg-[var(--color-accent)] selection:text-[#0f1117]">
+                      {post.content}
+                    </p>
+                  </div>
+
+                  {/* Quote Source Content */}
+                  {quoteSourceContent && (
+                    <div className="relative border-l-4 border-l-[var(--color-accent)]/50 bg-[var(--color-accent)]/5 p-5 rounded-r-2xl overflow-hidden group">
+                      <div className="absolute top-2 right-2 opacity-5 text-[var(--color-accent)] transition-opacity group-hover:opacity-10">
+                        <Share2 className="w-12 h-12 rotate-12" />
+                      </div>
+                      <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-[var(--color-accent)] mb-3">
+                        Quoted Source
+                      </div>
+                      <p className="text-base text-[var(--color-cream)]/80 leading-relaxed font-sans italic">
+                        "{quoteSourceContent}"
+                      </p>
+                    </div>
                   )}
+
+                  {/* Media Carousel */}
+                  {!!media.length && (
+                    <div className="space-y-4">
+                      <div className="relative group/carousel rounded-2xl overflow-hidden border border-[var(--color-border)] bg-black/40 aspect-video flex items-center justify-center">
+                        {currentMedia.content_type?.startsWith("video/") ? (
+                          <video
+                            controls
+                            src={currentSrc ?? undefined}
+                            className="w-full h-full max-h-[500px] object-contain"
+                          />
+                        ) : (
+                          <img
+                            src={currentSrc ?? undefined}
+                            alt={currentMedia.file_name ?? "Post media"}
+                            className="w-full h-full max-h-[500px] object-contain transition-transform duration-700 group-hover/carousel:scale-105"
+                          />
+                        )}
+
+                        {media.length > 1 && (
+                          <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 flex justify-between pointer-events-none opacity-0 group-hover/carousel:opacity-100 transition-opacity">
+                            <CarouselButton side="left" onClick={() => onActiveMediaIndexChange((activeMediaIndex - 1 + media.length) % media.length)} />
+                            <CarouselButton side="right" onClick={() => onActiveMediaIndexChange((activeMediaIndex + 1) % media.length)} />
+                          </div>
+                        )}
+                        
+                        {/* Carousel Indicators */}
+                        {media.length > 1 && (
+                          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 p-1.5 bg-black/20 backdrop-blur-md rounded-full border border-white/5">
+                            {media.map((_, i) => (
+                              <button
+                                key={i}
+                                onClick={() => onActiveMediaIndexChange(i)}
+                                className={cn(
+                                  "w-1.5 h-1.5 rounded-full transition-all duration-300",
+                                  i === activeMediaIndex ? "w-6 bg-[var(--color-accent)]" : "bg-white/30 hover:bg-white/50"
+                                )}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {children && <div className="pt-4">{children}</div>}
                 </div>
               )}
             </div>
 
-            {actions && (
-              <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {actions}
-              </div>
-            )}
-
-            {children}
-          </>
-        )}
-      </div>
-    </div>
+            {/* Footer Actions */}
+            <div className="p-6 border-t border-[var(--color-border)]/50 bg-[var(--color-ink)]/30 flex items-center justify-between gap-4 shrink-0">
+               <div className="flex items-center gap-2">
+                 <Button variant="ghost" className="text-[var(--color-muted)] hover:text-[var(--color-cream)]" onClick={onClose}>Close</Button>
+               </div>
+               <div className="flex items-center gap-3">
+                 {actions}
+               </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 }
 
-function carouselArrowButton(side: "left" | "right"): CSSProperties {
-  return {
-    position: "absolute",
-    top: "50%",
-    [side]: 8,
-    transform: "translateY(-50%)",
-    border: "1px solid var(--color-border)",
-    background: "rgba(9,13,22,0.7)",
-    color: "var(--color-cream)",
-    width: 34,
-    height: 34,
-    borderRadius: 999,
-    fontSize: 20,
-    lineHeight: 1,
-  };
+function CarouselButton({ side, onClick }: { side: "left" | "right"; onClick: () => void }) {
+  const Icon = side === "left" ? ChevronLeft : ChevronRight;
+  return (
+    <button
+      onClick={onClick}
+      className="pointer-events-auto w-10 h-10 flex items-center justify-center rounded-full bg-black/60 border border-white/10 text-white hover:bg-[var(--color-primary)] hover:border-transparent transition-all active:scale-90 shadow-xl"
+    >
+      <Icon className="w-6 h-6" />
+    </button>
+  );
 }

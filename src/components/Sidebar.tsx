@@ -1,11 +1,24 @@
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  LayoutDashboard, 
+  PenSquare, 
+  Calendar, 
+  BarChart3, 
+  Settings, 
+  LayoutGrid, 
+  Plus, 
+  ChevronLeft, 
+  ChevronRight
+} from "lucide-react";
+import { cn } from "../lib/utils";
 
 const NAV = [
-  { href: "/dashboard", icon: "grid_view",      label: "Dashboard"        },
-  { href: "/compose",   icon: "edit_square",     label: "Compose"          },
-  { href: "/calendar",  icon: "calendar_month",  label: "Calendar"         },
-  { href: "/analytics", icon: "insights",        label: "Analytics"        },
-  { href: "/settings/accounts", icon: "manage_accounts", label: "Account Settings" },
+  { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/compose",   icon: PenSquare,       label: "Compose"   },
+  { href: "/calendar",  icon: Calendar,        label: "Calendar"  },
+  { href: "/analytics", icon: BarChart3,       label: "Analytics" },
+  { href: "/settings/accounts", icon: Settings, label: "Settings"  },
 ];
 
 export default function Sidebar() {
@@ -13,12 +26,10 @@ export default function Sidebar() {
   const [path, setPath] = useState("");
 
   useEffect(() => {
-    // Initial load
     setPath(window.location.pathname);
     const saved = localStorage.getItem("ps-sidebar");
     if (saved === "collapsed") setCollapsed(true);
 
-    // Update active link on every Astro client-side navigation
     const onNav = () => setPath(window.location.pathname);
     document.addEventListener("astro:page-load", onNav);
     return () => document.removeEventListener("astro:page-load", onNav);
@@ -36,65 +47,67 @@ export default function Sidebar() {
     path === href || (href !== "/" && path.startsWith(href));
 
   return (
-    <aside
-      className="hidden lg:flex flex-col border-r border-border bg-surface shrink-0 overflow-hidden"
-      style={{
-        width: collapsed ? 64 : 224,
-        transition: "width 0.2s cubic-bezier(0.4,0,0.2,1)",
-      }}
+    <motion.aside
+      initial={false}
+      animate={{ width: collapsed ? 80 : 260 }}
+      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+      className="hidden lg:flex flex-col border-r border-[var(--color-border)] bg-[var(--color-ink)] shrink-0 overflow-hidden relative z-50 backdrop-blur-xl"
     >
-      {/* Logo */}
+      {/* Glow Effect */}
+      <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden">
+        <div className="absolute -top-24 -left-24 w-48 h-48 bg-[var(--color-accent)] opacity-[0.03] blur-[80px]" />
+      </div>
+
+      {/* Logo Section */}
       <a
         href="/"
-        className="flex items-center gap-3 px-4 py-4 border-b border-border shrink-0"
-        style={{ minHeight: 56 }}
+        className="flex items-center gap-3 px-6 py-8 shrink-0 relative group"
       >
-        <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-white shrink-0">
-          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>
-            grid_view
-          </span>
+        <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-accent)] text-white shrink-0 shadow-lg shadow-[var(--color-primary)]/20 transition-transform group-hover:scale-110">
+          <LayoutGrid className="w-5 h-5 fill-white" />
         </div>
         {!collapsed && (
-          <span className="text-sm font-bold tracking-tight text-cream whitespace-nowrap">
-            Post Scheduler
-          </span>
+          <motion.div 
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex flex-col"
+          >
+            <span className="text-lg font-black tracking-tighter text-[var(--color-cream)] leading-none uppercase">
+              Post
+            </span>
+            <span className="text-xs font-black tracking-tighter text-[var(--color-accent)] leading-none uppercase">
+              Scheduler
+            </span>
+          </motion.div>
         )}
       </a>
 
-      {/* Nav links */}
-      <nav className="flex flex-col gap-0.5 p-2 flex-1 overflow-y-auto overflow-x-hidden">
-        {NAV.map(({ href, icon, label }) => {
+      {/* Nav Links */}
+      <nav className="flex flex-col gap-1.5 px-3 flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide py-4">
+        {NAV.map(({ href, icon: Icon, label }) => {
           const active = isActive(href);
           return (
             <a
               key={href}
               href={href}
               title={collapsed ? label : undefined}
-              className={`flex items-center gap-3 rounded-lg py-2.5 transition-all whitespace-nowrap ${
-                collapsed ? "px-2 justify-center" : "px-3"
-              } ${
+              className={cn(
+                "group flex items-center gap-3 rounded-xl py-3 px-4 transition-all duration-300 relative",
+                collapsed ? "justify-center px-0" : "",
                 active
-                  ? "text-primary"
-                  : "text-muted hover:bg-primary/10 hover:text-primary"
-              }`}
-              style={
-                active
-                  ? {
-                      background: "color-mix(in srgb, var(--color-accent) 20%, transparent)",
-                      borderRight: "4px solid var(--color-accent)",
-                      boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 28%, transparent)",
-                    }
-                  : undefined
-              }
+                  ? "text-[var(--color-accent)] bg-[var(--color-accent)]/10 shadow-sm"
+                  : "text-[var(--color-muted)] hover:text-[var(--color-cream)] hover:bg-[var(--color-elevated)]"
+              )}
             >
-              <span
-                className="material-symbols-outlined shrink-0"
-                style={{ fontSize: 20 }}
-              >
-                {icon}
-              </span>
+              {active && (
+                <motion.div 
+                  layoutId="active-pill"
+                  className="absolute left-0 w-1 h-6 bg-[var(--color-accent)] rounded-r-full shadow-[0_0_12px_rgba(139,151,255,0.5)]"
+                />
+              )}
+              <Icon className={cn("w-5 h-5 shrink-0 transition-transform group-hover:scale-110", active ? "stroke-[2.5px]" : "stroke-2")} />
               {!collapsed && (
-                <span className={`text-sm ${active ? "font-semibold" : "font-medium"}`}>
+                <span className={cn("text-sm transition-all whitespace-nowrap", active ? "font-bold tracking-tight" : "font-medium")}>
                   {label}
                 </span>
               )}
@@ -103,32 +116,27 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Footer: Create Post + collapse toggle */}
-      <div className="p-2 flex flex-col gap-1 border-t border-border shrink-0">
+      {/* Footer Actions */}
+      <div className="p-4 flex flex-col gap-2 mt-auto border-t border-[var(--color-border)]/50">
         <a
           href="/compose"
-          title={collapsed ? "Create Post" : undefined}
-          className={`flex items-center justify-center gap-2 rounded-xl bg-primary text-white font-bold text-sm transition-colors hover:bg-primary/90 ${
-            collapsed ? "p-2.5" : "py-2.5 px-3"
-          }`}
+          className={cn(
+            "flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-accent)] text-[#0f1117] font-bold text-sm transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-[var(--color-primary)]/20 active:scale-[0.98]",
+            collapsed ? "p-3" : "py-3 px-4"
+          )}
         >
-          <span className="material-symbols-outlined shrink-0" style={{ fontSize: 18 }}>
-            add
-          </span>
+          <Plus className="w-5 h-5 stroke-[3px]" />
           {!collapsed && <span>Create Post</span>}
         </a>
 
         <button
           onClick={toggle}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg py-2 text-muted hover:text-cream hover:bg-elevated transition-colors"
+          className="flex w-full items-center justify-center gap-2 rounded-lg py-2 text-[var(--color-muted)] hover:text-[var(--color-cream)] hover:bg-[var(--color-elevated)] transition-all font-mono text-[10px] uppercase tracking-widest mt-2"
         >
-          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-            {collapsed ? "chevron_right" : "chevron_left"}
-          </span>
-          {!collapsed && <span className="text-xs">Collapse</span>}
+          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          {!collapsed && <span>Collapse</span>}
         </button>
       </div>
-    </aside>
+    </motion.aside>
   );
 }

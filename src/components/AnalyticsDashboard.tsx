@@ -48,6 +48,16 @@ function initials(content: string): string {
   return words.map((w) => w[0].toUpperCase()).join("");
 }
 
+function pickThumbnailUrl(post: Post): string | null {
+  const media = post.media ?? [];
+  const firstImage = media.find((item) => {
+    const contentType = (item.content_type ?? "").toLowerCase();
+    const mediaType = (item.type ?? "").toLowerCase();
+    return contentType.startsWith("image/") || mediaType === "image" || mediaType === "gif";
+  });
+  return firstImage?.public_url ?? null;
+}
+
 
 type BusyState = Record<string, boolean>;
 
@@ -104,6 +114,7 @@ export default function AnalyticsDashboard() {
   const [detailQuoteSourcePost, setDetailQuoteSourcePost] = useState<Post | null>(null);
   const [detailAnalytics, setDetailAnalytics] = useState<PostAnalytics[]>([]);
   const [detailMediaUrls, setDetailMediaUrls] = useState<Record<string, string>>({});
+  const [thumbByPostId, setThumbByPostId] = useState<Record<string, string>>({});
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [cooldowns, setCooldowns] = useState<Record<string, number>>({});
@@ -169,8 +180,20 @@ export default function AnalyticsDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const data = await api.get<PostAnalyticsLatest[]>("/analytics/posts?include_deleted=true");
+      const [data, posts] = await Promise.all([
+        api.get<PostAnalyticsLatest[]>("/analytics/posts?include_deleted=true"),
+        api.get<Post[]>("/posts?limit=500&include_deleted=true"),
+      ]);
       setRows(data);
+
+      const nextThumbs: Record<string, string> = {};
+      for (const post of posts) {
+        const thumb = pickThumbnailUrl(post);
+        if (thumb) {
+          nextThumbs[post.id] = thumb;
+        }
+      }
+      setThumbByPostId(nextThumbs);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load analytics");
     } finally {
@@ -693,6 +716,7 @@ export default function AnalyticsDashboard() {
             const busyEdit = !!busy[`edit:${row.post_id}`];
             const busyReschedule = !!busy[`reschedule:${row.post_id}`];
             const hidePerformance = row.status === "scheduled" || row.status === "draft";
+            const thumb = thumbByPostId[row.post_id] ?? null;
 
             const statusClass = row.is_deleted ? "deleted" : row.status;
 
@@ -724,7 +748,16 @@ export default function AnalyticsDashboard() {
                         "linear-gradient(140deg, color-mix(in srgb, var(--color-accent) 80%, transparent), color-mix(in srgb, var(--color-amber) 70%, transparent))",
                     }}
                   >
-                    {initials(row.content)}
+                    {thumb ? (
+                      <img
+                        src={thumb}
+                        alt="Post media preview"
+                        loading="lazy"
+                        style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "inherit" }}
+                      />
+                    ) : (
+                      initials(row.content)
+                    )}
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <div

@@ -1,3 +1,8 @@
+import { motion, AnimatePresence } from "framer-motion";
+import { AlertTriangle, X } from "lucide-react";
+import { Button } from "./ui/Button";
+import { cn } from "../lib/utils";
+
 interface ConfirmDeleteModalProps {
   open: boolean;
   busy: boolean;
@@ -17,115 +22,85 @@ export default function ConfirmDeleteModal({
   onConfirm,
   zIndex = 90,
 }: ConfirmDeleteModalProps) {
-  if (!open) return null;
-
   return (
-    <div
-      onClick={() => !busy && onCancel()}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex,
-        background: "rgba(2, 6, 14, 0.72)",
-        backdropFilter: "blur(6px)",
-        display: "grid",
-        placeItems: "center",
-        padding: 20,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "min(620px, 100%)",
-          borderRadius: 16,
-          border: "1px solid var(--color-border)",
-          background: "var(--color-surface)",
-          padding: 16,
-        }}
-      >
-        <h3
-          style={{
-            margin: 0,
-            color: "var(--color-cream)",
-            fontFamily: "var(--font-sans)",
-            fontSize: 24,
-          }}
+    <AnimatePresence>
+      {open && (
+        <div 
+          className="fixed inset-0 flex items-center justify-center p-4 z-[100]"
+          style={{ zIndex }}
         >
-          Delete this post?
-        </h3>
-        <p
-          style={{
-            marginTop: 8,
-            marginBottom: 0,
-            color: "var(--color-muted)",
-            fontFamily: "var(--font-mono)",
-            fontSize: 12,
-          }}
-        >
-          This post will be marked as deleted and hidden from active views.
-        </p>
-        <p
-          style={{
-            marginTop: 10,
-            color: "var(--color-cream)",
-            fontFamily: "var(--font-sans)",
-            fontSize: 18,
-          }}
-        >
-          {previewText}
-        </p>
-        {errorMessage && (
-          <p
-            style={{
-              marginTop: 10,
-              marginBottom: 0,
-              border: "1px solid color-mix(in srgb, var(--color-danger) 45%, transparent)",
-              borderRadius: 10,
-              background: "color-mix(in srgb, var(--color-danger) 10%, transparent)",
-              color: "var(--color-danger)",
-              padding: "8px 10px",
-              fontSize: 12,
-              fontFamily: "var(--font-mono)",
-            }}
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => !busy && onCancel()}
+            className="absolute inset-0 bg-[#02060e]/80 backdrop-blur-md"
+          />
+
+          {/* Modal Content */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl p-8 space-y-6"
           >
-            {errorMessage}
-          </p>
-        )}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
-          <button
-            onClick={onCancel}
-            disabled={busy}
-            style={{
-              borderRadius: 999,
-              border: "1px solid var(--color-border)",
-              background: "transparent",
-              color: "var(--color-cream)",
-              padding: "8px 14px",
-              fontFamily: "var(--font-mono)",
-              fontSize: 12,
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={busy}
-            style={{
-              borderRadius: 999,
-              border: "none",
-              background: "var(--color-danger)",
-              color: "#10141b",
-              padding: "8px 16px",
-              fontFamily: "var(--font-sans)",
-              fontWeight: 700,
-              fontSize: 15,
-              opacity: busy ? 0.6 : 1,
-            }}
-          >
-            {busy ? "Deleting..." : "Yes, delete"}
-          </button>
+            <div className="flex items-start gap-4">
+              <div className="p-3 rounded-full bg-[var(--color-danger)]/10 text-[var(--color-danger)] shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-2xl font-bold text-[var(--color-cream)] tracking-tight">Delete Post?</h3>
+                <p className="text-sm text-[var(--color-muted)] font-mono leading-relaxed">
+                  This action will hide the post from all active views. This cannot be undone from the dashboard.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-[var(--color-ink)]/50 border border-[var(--color-border)]/50 italic text-[var(--color-cream)]/70 text-base font-sans line-clamp-3">
+              "{previewText}"
+            </div>
+
+            {errorMessage && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                className="p-3 rounded-lg bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/20 text-[var(--color-danger)] text-xs font-mono"
+              >
+                {errorMessage}
+              </motion.div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-4">
+              <Button 
+                variant="ghost" 
+                onClick={onCancel} 
+                disabled={busy}
+                className="text-[var(--color-muted)] hover:text-[var(--color-cream)] px-6"
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={onConfirm} 
+                disabled={busy}
+                className="px-8 font-bold shadow-lg shadow-[var(--color-danger)]/20"
+              >
+                {busy ? "Deleting..." : "Delete Permanently"}
+              </Button>
+            </div>
+
+            <button
+              onClick={onCancel}
+              disabled={busy}
+              className="absolute top-4 right-4 p-2 text-[var(--color-muted)] hover:text-[var(--color-cream)] transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </motion.div>
         </div>
-      </div>
-    </div>
+      )}
+    </AnimatePresence>
   );
 }
