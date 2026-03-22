@@ -319,6 +319,10 @@ export default function AnalyticsDashboard() {
     });
   };
 
+  const openComposeEditor = (postId: string) => {
+    window.location.href = `/compose?edit_post_id=${encodeURIComponent(postId)}`;
+  };
+
   const openPostDetail = async (postId: string) => {
     setDetailPostId(postId);
     setDetailLoading(true);
@@ -483,7 +487,7 @@ export default function AnalyticsDashboard() {
           }}
           onOpenEdit={() => {
             if (!detailPost) return;
-            setEditComposer({ postId: detailPost.id, content: detailPost.content });
+            openComposeEditor(detailPost.id);
           }}
           onOpenReschedule={() => {
             if (!detailPost) return;
@@ -918,7 +922,7 @@ export default function AnalyticsDashboard() {
                         <button
                           onClick={() => {
                             setActiveMenuPostId(null);
-                            setEditComposer({ postId: row.post_id, content: row.content });
+                            openComposeEditor(row.post_id);
                           }}
                           disabled={busyEdit}
                           style={actionButtonStyle(busyEdit)}

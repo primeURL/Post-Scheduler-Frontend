@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
 import type { ConnectedAccount, Post, PostAnalyticsLatest } from "../lib/types";
+import SchedulePickerModal from "./SchedulePickerModal";
 
 type LoadState = "idle" | "loading" | "error";
 
@@ -31,6 +32,12 @@ export default function DashboardOverview() {
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [state, setState] = useState<LoadState>("loading");
   const [error, setError] = useState<string | null>(null);
+  const [detailPostId, setDetailPostId] = useState<string | null>(null);
+  const [detailPost, setDetailPost] = useState<Post | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [scheduleTargetPostId, setScheduleTargetPostId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -102,8 +109,158 @@ export default function DashboardOverview() {
       .slice(0, 6);
   }, [activePosts]);
 
+  const openDetail = async (postId: string) => {
+    setDetailPostId(postId);
+    setDetailLoading(true);
+    setDetailError(null);
+    try {
+      const postData = await api.get<Post>(`/posts/${postId}?include_deleted=true`);
+      setDetailPost(postData);
+    } catch (e) {
+      setDetailError(e instanceof Error ? e.message : "Failed to load post details.");
+      setDetailPost(null);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const closeDetail = () => {
+    setDetailPostId(null);
+    setDetailPost(null);
+    setDetailError(null);
+  };
+
+  const refreshAll = async () => {
+    try {
+      const [postsData, rowsData, accountData] = await Promise.all([
+        api.get<Post[]>("/posts?limit=500&include_deleted=true"),
+        api.get<PostAnalyticsLatest[]>("/analytics/posts?include_deleted=true"),
+        api.get<ConnectedAccount[]>("/accounts").catch(() => []),
+      ]);
+      setPosts(postsData);
+      setRows(rowsData);
+      setAccounts(accountData);
+    } catch {
+      // ignore in silent refresh
+    }
+  };
+
+  const refreshDetail = async () => {
+    if (!detailPostId) return;
+    await openDetail(detailPostId);
+  };
+
+  const actionEditContent = async () => {
+    if (!detailPost) return;
+    window.location.href = `/compose?edit_post_id=${encodeURIComponent(detailPost.id)}`;
+  };
+
+  const actionDelete = async () => {
+    if (!detailPost) return;
+    const ok = window.confirm("Delete this post?");
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/posts/${detailPost.id}`);
+      closeDetail();
+      await refreshAll();
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="w-full max-w-6xl mx-auto px-4 py-8" style={{ animation: "var(--animate-fade-up)" }}>
+      {scheduleTargetPostId && (
+        <SchedulePickerModal
+          initialISO={detailPost?.scheduled_for ?? null}
+          onClose={() => setScheduleTargetPostId(null)}
+          onConfirm={async (localIso) => {
+            await api.patch(`/posts/${scheduleTargetPostId}`, {
+              scheduled_for: new Date(localIso).toISOString(),
+            });
+            setScheduleTargetPostId(null);
+            await refreshDetail();
+            await refreshAll();
+          }}
+        />
+      )}
+
+      {detailPostId && (
+        <div
+          onClick={closeDetail}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 75,
+            background: "rgba(2, 6, 14, 0.75)",
+            backdropFilter: "blur(8px)",
+            display: "grid",
+            placeItems: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "min(760px, 100%)",
+              borderRadius: 16,
+              border: "1px solid var(--color-border)",
+              background: "linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 92%, #000), var(--color-surface))",
+              padding: 16,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <h3 style={{ margin: 0, color: "var(--color-cream)", fontFamily: "var(--font-sans)", fontSize: 24 }}>Post Details</h3>
+              <button onClick={closeDetail} style={{ border: "none", background: "transparent", color: "var(--color-cream)", fontSize: 24, lineHeight: 1 }}>×</button>
+            </div>
+
+            {detailLoading && <p style={panelEmptyStyle}>Loading post details...</p>}
+            {detailError && <p style={{ ...panelEmptyStyle, color: "var(--color-danger)" }}>{detailError}</p>}
+
+            {detailPost && (
+              <>
+                <div style={{ border: "1px solid var(--color-border)", borderRadius: 12, padding: 12, background: "color-mix(in srgb, var(--color-ink) 18%, transparent)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <span style={statusChipStyle(detailPost.status === "scheduled" ? "scheduled" : "draft")}>{detailPost.status}</span>
+                    {detailPost.scheduled_for && (
+                      <span style={rowSecondaryTextStyle}>Scheduled {fmtShortDate(detailPost.scheduled_for)}</span>
+                    )}
+                  </div>
+                  <p style={{ margin: 0, color: "var(--color-cream)", fontSize: 20, lineHeight: 1.35, fontFamily: "var(--font-sans)", whiteSpace: "pre-wrap" }}>
+                    {detailPost.content}
+                  </p>
+                </div>
+
+                <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  <button onClick={refreshDetail} style={detailButtonStyle(false)}>Reload</button>
+                  {detailPost.status === "scheduled" && !detailPost.is_deleted && (
+                    <button onClick={() => { void actionEditContent(); }} style={detailButtonStyle(false)}>Edit content</button>
+                  )}
+                  {detailPost.status === "scheduled" && !detailPost.is_deleted && (
+                    <button onClick={() => setScheduleTargetPostId(detailPost.id)} style={detailButtonStyle(false)}>Change time</button>
+                  )}
+                  {(detailPost.status === "draft" || detailPost.status === "scheduled" || detailPost.status === "failed") && !detailPost.is_deleted && (
+                    <button onClick={() => { void actionEditContent(); }} style={detailButtonStyle(false)}>Quick edit</button>
+                  )}
+                  <button
+                    onClick={() => { void actionDelete(); }}
+                    disabled={deleting || detailPost.is_deleted}
+                    style={{
+                      ...detailButtonStyle(deleting || detailPost.is_deleted),
+                      border: "1px solid color-mix(in srgb, var(--color-danger) 45%, transparent)",
+                      color: "var(--color-danger)",
+                    }}
+                  >
+                    {deleting ? "Deleting..." : "Delete"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 18 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 30, color: "var(--color-cream)", fontFamily: "var(--font-sans)", letterSpacing: "-0.02em" }}>
@@ -150,13 +307,20 @@ export default function DashboardOverview() {
           {state === "loading" && <p style={panelEmptyStyle}>Loading upcoming schedule...</p>}
           {state !== "loading" && upcoming.length === 0 && <p style={panelEmptyStyle}>No scheduled posts yet.</p>}
           {upcoming.map((post) => (
-            <a key={post.id} href={`/calendar`} style={rowLinkStyle}>
+            <button
+              key={post.id}
+              type="button"
+              onClick={() => {
+                void openDetail(post.id);
+              }}
+              style={{ ...rowLinkStyle, width: "100%", textAlign: "left", cursor: "pointer" }}
+            >
               <div>
                 <div style={rowPrimaryTextStyle}>{teaser(post.content, 90)}</div>
                 <div style={rowSecondaryTextStyle}>Scheduled {fmtShortDate(post.scheduled_for)}</div>
               </div>
               <span style={statusChipStyle("scheduled")}>scheduled</span>
-            </a>
+            </button>
           ))}
         </section>
 
@@ -168,13 +332,20 @@ export default function DashboardOverview() {
           {state === "loading" && <p style={panelEmptyStyle}>Loading drafts...</p>}
           {state !== "loading" && recentDrafts.length === 0 && <p style={panelEmptyStyle}>No drafts available.</p>}
           {recentDrafts.map((post) => (
-            <a key={post.id} href={`/compose?draft_post_id=${encodeURIComponent(post.id)}`} style={rowLinkStyle}>
+            <button
+              key={post.id}
+              type="button"
+              onClick={() => {
+                void openDetail(post.id);
+              }}
+              style={{ ...rowLinkStyle, width: "100%", textAlign: "left", cursor: "pointer" }}
+            >
               <div>
                 <div style={rowPrimaryTextStyle}>{teaser(post.content, 75)}</div>
                 <div style={rowSecondaryTextStyle}>Updated {fmtShortDate(post.updated_at)}</div>
               </div>
               <span style={statusChipStyle("draft")}>draft</span>
-            </a>
+            </button>
           ))}
         </section>
       </div>
@@ -266,6 +437,20 @@ const rowLinkStyle: React.CSSProperties = {
   textDecoration: "none",
   background: "color-mix(in srgb, var(--color-ink) 16%, transparent)",
 };
+
+function detailButtonStyle(disabled: boolean): React.CSSProperties {
+  return {
+    borderRadius: 999,
+    border: "1px solid var(--color-border)",
+    background: "transparent",
+    color: "var(--color-cream)",
+    padding: "8px 12px",
+    fontFamily: "var(--font-mono)",
+    fontSize: 12,
+    opacity: disabled ? 0.45 : 1,
+    cursor: disabled ? "not-allowed" : "pointer",
+  };
+}
 
 const rowPrimaryTextStyle: React.CSSProperties = {
   color: "var(--color-cream)",

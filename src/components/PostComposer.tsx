@@ -189,8 +189,8 @@ function PostCard({
             resize();
           }}
           onInput={resize}
-          className="w-full resize-none border-none bg-transparent p-0 text-[15px] leading-relaxed placeholder:text-muted focus:ring-0 focus:outline-none text-cream"
-          style={{ minHeight: 72 }}
+          className="w-full resize-none border-none bg-transparent px-0 py-1 text-[15px] leading-6 placeholder:text-muted focus:ring-0 focus:outline-none text-cream"
+          style={{ minHeight: 80 }}
         />
 
         {slot.media && (
@@ -620,6 +620,7 @@ function SetupModal({
 // ─── Main composer ───────────────────────────────────────────────────────────
 
 type ActionState = "idle" | "loading" | "success" | "error";
+type SubmitAction = "draft" | "publish";
 
 export default function PostComposer() {
   const user = useStore($user);
@@ -630,6 +631,7 @@ export default function PostComposer() {
   const [scheduledFor, setScheduledFor] = useState<string | null>(null);
   const [showSchedulePicker, setShowSchedulePicker] = useState(false);
   const [actionState, setActionState] = useState<ActionState>("idle");
+  const [lastSubmitAction, setLastSubmitAction] = useState<SubmitAction | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [focusId, setFocusId] = useState<string>(slots[0].id);
   const [showSetup, setShowSetup] = useState(false);
@@ -638,6 +640,7 @@ export default function PostComposer() {
   const [scheduledGroups, setScheduledGroups] = useState<DraftGroup[]>([]);
   const [selectedScheduledKey, setSelectedScheduledKey] =
     useState<string>("");
+  const [editingPostIds, setEditingPostIds] = useState<string[]>([]);
   const [isComposerDropActive, setIsComposerDropActive] = useState(false);
   const [isTwoColumnLayout, setIsTwoColumnLayout] = useState(true);
   const composeGridRef = useRef<HTMLDivElement>(null);
@@ -648,7 +651,13 @@ export default function PostComposer() {
       ? new URLSearchParams(window.location.search).get("draft_post_id")
       : null,
   );
+  const requestedEditPostIdRef = useRef<string | null>(
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("edit_post_id")
+      : null,
+  );
   const autoRestoreDoneRef = useRef(false);
+  const autoEditRestoreDoneRef = useRef(false);
 
   useEffect(() => {
     if (!user) return;
@@ -824,13 +833,20 @@ export default function PostComposer() {
     setErrorMsg(""); // Clear any previous limit error
   }, [currentLimits.maxThreadLength, currentTier, slots.length]);
 
-  const handleRemove = useCallback((id: string) => {
-    setSlots((prev) => {
-      const slot = prev.find((item) => item.id === id);
-      if (slot) revokeSlotMedia(slot);
-      return prev.filter((s) => s.id !== id);
-    });
-  }, []);
+  const handleRemove = useCallback(
+    (id: string) => {
+      if (editingPostIds.length > 0) {
+        setErrorMsg("Removing posts is disabled while editing an existing post/thread.");
+        return;
+      }
+      setSlots((prev) => {
+        const slot = prev.find((item) => item.id === id);
+        if (slot) revokeSlotMedia(slot);
+        return prev.filter((s) => s.id !== id);
+      });
+    },
+    [editingPostIds.length],
+  );
 
   const handleClear = () => {
     for (const slot of slots) {
@@ -841,12 +857,16 @@ export default function PostComposer() {
     setFocusId(fresh.id);
     setScheduledFor(null);
     setActionState("idle");
+    setLastSubmitAction(null);
     setErrorMsg("");
     setSelectedDraftKey("");
     setSelectedScheduledKey("");
+    setEditingPostIds([]);
   };
 
   const restoreDraftGroup = useCallback((selected: DraftGroup) => {
+    setEditingPostIds(selected.posts.map((post) => post.id));
+
     const restoredSlots: TweetSlot[] = selected.posts.map((post) => {
       const primaryMedia = post.media?.[0] ?? null;
       const media = primaryMedia
@@ -982,6 +1002,57 @@ export default function PostComposer() {
     }
   }, [drafts, restoreDraftGroup]);
 
+  useEffect(() => {
+    if (autoEditRestoreDoneRef.current) return;
+    const requestedPostId = requestedEditPostIdRef.current;
+    if (!requestedPostId || !user) return;
+
+    const loadEditTarget = async () => {
+      try {
+        const allPosts = await api.get<Post[]>("/posts?limit=500&include_deleted=true");
+        const target = allPosts.find((post) => post.id === requestedPostId && !post.is_deleted);
+        if (!target) {
+          autoEditRestoreDoneRef.current = true;
+          return;
+        }
+
+        const groupPosts = target.thread_id
+          ? allPosts
+              .filter(
+                (post) =>
+                  !post.is_deleted &&
+                  post.thread_id === target.thread_id &&
+                  post.status !== "published",
+              )
+              .sort((a, b) => (a.thread_order ?? 1) - (b.thread_order ?? 1))
+          : [target];
+
+        const selected: DraftGroup = {
+          key: target.thread_id ?? target.id,
+          label: target.content,
+          posts: groupPosts.length ? groupPosts : [target],
+          connectedAccountId: target.connected_account_id ?? null,
+          updatedAt: target.updated_at,
+        };
+
+        setEditingPostIds(selected.posts.map((post) => post.id));
+        restoreDraftGroup(selected);
+        autoEditRestoreDoneRef.current = true;
+
+        if (typeof window !== "undefined") {
+          const url = new URL(window.location.href);
+          url.searchParams.delete("edit_post_id");
+          const next = `${url.pathname}${url.search}${url.hash}`;
+          window.history.replaceState({}, "", next);
+        }
+      } catch {
+        autoEditRestoreDoneRef.current = true;
+      }
+    };
+
+    void loadEditTarget();
+  }, [restoreDraftGroup, user]);
+
   const isEmpty = slots.every((s) => s.content.trim() === "");
   const isOverLimit = slots.some((s) => s.content.length > charLimit);
   const isUploadingMedia = slots.some((s) => s.media?.uploading);
@@ -1096,16 +1167,43 @@ export default function PostComposer() {
       return;
     }
     setActionState("loading");
+    setLastSubmitAction(action);
     setErrorMsg("");
 
     try {
-      const threadId = slots.length > 1 ? crypto.randomUUID() : undefined;
       const scheduledAt =
         action === "draft"
           ? null
           : scheduledFor
             ? new Date(scheduledFor).toISOString()
             : new Date().toISOString();
+
+      if (editingPostIds.length > 0) {
+        if (editingPostIds.length !== slots.length) {
+          setActionState("error");
+          setErrorMsg("Thread length changed during edit. Keep the same number of posts for this edit.");
+          return;
+        }
+
+        const nextStatus = action === "draft" ? "draft" : "scheduled";
+        await Promise.all(
+          editingPostIds.map((postId, i) =>
+            api.patch(`/posts/${postId}`, {
+              connected_account_id: selectedAccount,
+              content: slots[i]?.content ?? "",
+              scheduled_for: scheduledAt,
+              status: nextStatus,
+              media: slots[i]?.media?.uploaded ? [slots[i].media.uploaded] : null,
+            }),
+          ),
+        );
+
+        await loadDrafts();
+        handleClear();
+        return;
+      }
+
+      const threadId = slots.length > 1 ? crypto.randomUUID() : undefined;
 
       const payloads: PostCreate[] = slots.map((s, i) => ({
         connected_account_id: selectedAccount,
@@ -1128,6 +1226,7 @@ export default function PostComposer() {
       setSlots([fresh]);
       setFocusId(fresh.id);
       setScheduledFor(null);
+      setEditingPostIds([]);
       setTimeout(() => setActionState("idle"), 3000);
     } catch (err) {
       setActionState("error");
@@ -1206,6 +1305,20 @@ export default function PostComposer() {
                 <h2 className="text-xs font-semibold uppercase tracking-wider text-primary">
                   Thread Composition
                 </h2>
+                {editingPostIds.length > 0 && (
+                  <div className="mt-1">
+                    <span
+                      className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                      style={{
+                        borderColor: "rgba(123,97,255,0.45)",
+                        background: "rgba(123,97,255,0.14)",
+                        color: "#8B97FF",
+                      }}
+                    >
+                      Editing existing post
+                    </span>
+                  </div>
+                )}
                 <p className="text-xs text-muted mt-0.5">
                   {slots.length} {slots.length === 1 ? "post" : "posts"} drafted • {totalChars} total characters
                 </p>
@@ -1252,7 +1365,13 @@ export default function PostComposer() {
                 <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
                   check_circle
                 </span>
-                {scheduledFor ? "Scheduled successfully." : "Post queued for publishing."}
+                {lastSubmitAction === "draft"
+                  ? editingPostIds.length > 0
+                    ? "Draft changes saved."
+                    : "Draft saved successfully."
+                  : scheduledFor
+                    ? "Scheduled successfully."
+                    : "Post queued for publishing."}
               </div>
             )}
 
@@ -1296,7 +1415,7 @@ export default function PostComposer() {
                   borderColor: "rgba(123,97,255,0.3)",
                   background: "rgba(123,97,255,0.04)",
                 }}
-                disabled={slots.length >= currentLimits.maxThreadLength}
+                disabled={editingPostIds.length > 0 || slots.length >= currentLimits.maxThreadLength}
               >
                 <span
                   className="material-symbols-outlined transition-transform group-hover:scale-110"
@@ -1390,7 +1509,7 @@ export default function PostComposer() {
                     className="rounded-lg border px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-muted hover:text-cream hover:bg-primary/10"
                     style={{ borderColor: "rgba(123,97,255,0.3)" }}
                   >
-                    Save Draft
+                    {editingPostIds.length > 0 ? "Move to Draft" : "Save Draft"}
                   </button>
                   <button
                     onClick={() => submit("publish")}
@@ -1404,7 +1523,7 @@ export default function PostComposer() {
                     {actionState === "loading"
                       ? "Posting…"
                       : !!scheduledFor
-                        ? "Schedule Thread"
+                        ? "Scheduled Post"
                         : "Post Thread Now"}
                   </button>
                 </div>

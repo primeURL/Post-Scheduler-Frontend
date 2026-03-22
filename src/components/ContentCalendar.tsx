@@ -597,11 +597,7 @@ export default function ContentCalendar() {
 
   const actionEditContent = async () => {
     if (!detailPost) return;
-    const nextText = window.prompt("Edit content:", detailPost.content);
-    if (!nextText || !nextText.trim()) return;
-    await api.patch(`/posts/${detailPost.id}`, { content: nextText.trim() });
-    await refreshDetail();
-    await fetchPosts();
+    window.location.href = `/compose?edit_post_id=${encodeURIComponent(detailPost.id)}`;
   };
 
   const actionDeleteFromDetail = async () => {
