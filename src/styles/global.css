@@ -5,20 +5,7 @@
 /* Class-based dark mode (html.dark) for landing/auth pages */
 @custom-variant dark (&:where(.dark, .dark *));
 
-@theme {
-  /* Landing / marketing fonts */
-  --font-display: "Inter", system-ui, sans-serif;
-
-  /* App fonts */
-  --font-sans: "Syne", system-ui, sans-serif;
-  --font-mono: "Martian Mono", monospace;
-
-  /* Landing page palette */
-  --color-primary:           #7b61ff;
-  --color-background-light:  #f6f5f8;
-  --color-background-dark:   #120f23;
-
-  /* App "Midnight Ink" palette */
+:root {
   --color-ink:      #0A0C10;
   --color-surface:  #11141C;
   --color-elevated: #1A1D28;
@@ -29,6 +16,38 @@
   --color-amber:    #F0A850;
   --color-danger:   #F07050;
   --color-success:  #4ECC80;
+
+  /* App fonts */
+  --font-sans: "Syne", system-ui, sans-serif;
+  --font-mono: "Martian Mono", monospace;
+  
+  --color-primary: #7b61ff;
+  --color-background-light: #f6f5f8;
+  --color-background-dark: #120f23;
+}
+
+@theme {
+  /* Landing / marketing fonts */
+  --font-display: "Inter", system-ui, sans-serif;
+
+  /* Use the defined variables */
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --color-primary: var(--color-primary);
+  --color-background-light: var(--color-background-light);
+  --color-background-dark: var(--color-background-dark);
+
+  --color-ink: var(--color-ink);
+  --color-surface: var(--color-surface);
+  --color-elevated: var(--color-elevated);
+  --color-border: var(--color-border);
+  --color-cream: var(--color-cream);
+  --color-muted: var(--color-muted);
+  --color-accent: var(--color-accent);
+  --color-amber: var(--color-amber);
+  --color-danger: var(--color-danger);
+  --color-success: var(--color-success);
 
   --animate-fade-up: fadeUp 0.2s ease-out both;
 }

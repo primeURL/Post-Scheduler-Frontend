@@ -1,11 +1,31 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useStore } from "@nanostores/react";
 import { $user } from "../stores/auth";
 import { api } from "../lib/api";
-import type { DownloadUrlResponse, Post, PostAnalytics, PostStatus } from "../lib/types";
+import type { Post, PostStatus } from "../lib/types";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  Calendar as CalendarIcon, 
+  ChevronLeft, 
+  ChevronRight, 
+  Plus, 
+  Clock, 
+  LayoutGrid, 
+  LayoutList,
+  ChevronRight as ChevronRightIcon,
+  Zap,
+  Twitter,
+  Search,
+  Filter,
+  Trash2,
+  Edit2
+} from "lucide-react";
+import { cn } from "../lib/utils";
+import { Button } from "./ui/Button";
+import { Card, CardContent } from "./ui/Card";
+import { Badge } from "./ui/Badge";
 import ConfirmDeleteModal from "./ConfirmDeleteModal";
 import PostDetailsModal from "./PostDetailsModal";
-import SchedulePickerModal from "./SchedulePickerModal";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -17,24 +37,13 @@ const MONTHS = [
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-const STATUS_COLOR: Record<PostStatus, string> = {
-  draft:      "var(--color-muted)",
-  scheduled:  "var(--color-accent)",
-  publishing: "var(--color-amber)",
-  published:  "var(--color-success)",
-  failed:     "var(--color-danger)",
+const STATUS_VARIANTS: Record<PostStatus, any> = {
+  draft:      "secondary",
+  scheduled:  "default",
+  publishing: "amber",
+  published:  "success",
+  failed:     "destructive",
 };
-
-const STATUS_BG: Record<PostStatus, string> = {
-  draft:      "color-mix(in srgb, var(--color-muted) 15%, transparent)",
-  scheduled:  "color-mix(in srgb, var(--color-accent) 15%, transparent)",
-  publishing: "color-mix(in srgb, var(--color-amber) 15%, transparent)",
-  published:  "color-mix(in srgb, var(--color-success) 15%, transparent)",
-  failed:     "color-mix(in srgb, var(--color-danger) 15%, transparent)",
-};
-
-// Statuses that can be deleted
-const DELETABLE: PostStatus[] = ["draft", "scheduled", "failed"];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -43,389 +52,43 @@ function daysInMonth(year: number, month: number): number {
 }
 
 function firstWeekday(year: number, month: number): number {
-  return new Date(year, month, 1).getDay(); // 0 = Sunday
+  return new Date(year, month, 1).getDay();
 }
 
-/** Returns the date a post should appear on the calendar */
 function calendarDate(post: Post): Date | null {
   const iso = post.scheduled_for ?? post.published_at ?? post.created_at;
   return iso ? new Date(iso) : null;
 }
 
-function fmt12(iso: string): string {
+function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
-// ─── NavButton ────────────────────────────────────────────────────────────────
-
-function NavBtn({
-  onClick,
-  label,
-  children,
-}: {
-  onClick: () => void;
-  label: string;
-  children: React.ReactNode;
-}) {
-  const [hov, setHov] = useState(false);
-  return (
-    <button
-      onClick={onClick}
-      aria-label={label}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        width: 30,
-        height: 30,
-        borderRadius: 8,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        cursor: "pointer",
-        background: hov ? "var(--color-elevated)" : "transparent",
-        border: `1px solid ${hov ? "var(--color-border)" : "transparent"}`,
-        color: hov ? "var(--color-cream)" : "var(--color-muted)",
-        transition: "all 0.12s ease",
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-// ─── DayCell ──────────────────────────────────────────────────────────────────
-
-function DayCell({
-  day,
-  posts,
-  isToday,
-  isSelected,
-  faded,
-  onClick,
-}: {
-  day: number | null;
-  posts: Post[];
-  isToday: boolean;
-  isSelected: boolean;
-  faded: boolean;
-  onClick: () => void;
-}) {
-  if (day === null) {
-    return (
-      <div
-        style={{
-          minHeight: 88,
-          borderRadius: 10,
-          background: "transparent",
-          border: "1px solid transparent",
-        }}
-      />
-    );
-  }
-
-  const visible = posts.slice(0, 3);
-  const overflow = posts.length - 3;
-
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        minHeight: 88,
-        padding: "8px 8px 6px",
-        borderRadius: 10,
-        background: isSelected
-          ? "color-mix(in srgb, var(--color-accent) 8%, transparent)"
-          : "var(--color-elevated)",
-        border: `1px solid ${
-          isSelected
-            ? "color-mix(in srgb, var(--color-accent) 45%, transparent)"
-            : isToday
-            ? "color-mix(in srgb, var(--color-accent) 22%, transparent)"
-            : "var(--color-border)"
-        }`,
-        cursor: "pointer",
-        textAlign: "left",
-        opacity: faded ? 0.38 : 1,
-        display: "flex",
-        flexDirection: "column",
-        gap: 3,
-        transition: "border-color 0.12s ease, background 0.12s ease",
-      }}
-    >
-      {/* Day number */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 2,
-        }}
-      >
-        <span
-          style={{
-            width: 22,
-            height: 22,
-            borderRadius: "50%",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 12,
-            fontFamily: "var(--font-mono)",
-            fontWeight: isToday ? 600 : 400,
-            color: isToday ? "var(--color-ink)" : "var(--color-cream)",
-            background: isToday ? "var(--color-accent)" : "transparent",
-            flexShrink: 0,
-          }}
-        >
-          {day}
-        </span>
-        {overflow > 0 && (
-          <span
-            style={{
-              fontSize: 9,
-              fontFamily: "var(--font-mono)",
-              color: "var(--color-muted)",
-            }}
-          >
-            +{overflow}
-          </span>
-        )}
-      </div>
-
-      {/* Post chips */}
-      {visible.map((post) => (
-        <div
-          key={post.id}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            padding: "2px 5px",
-            borderRadius: 4,
-            background: STATUS_BG[post.status],
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              width: 5,
-              height: 5,
-              borderRadius: "50%",
-              background: STATUS_COLOR[post.status],
-              flexShrink: 0,
-            }}
-          />
-          <span
-            style={{
-              fontSize: 10,
-              fontFamily: "var(--font-mono)",
-              color: "var(--color-cream)",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              flex: 1,
-            }}
-          >
-            {post.content.slice(0, 22)}
-          </span>
-        </div>
-      ))}
-    </button>
-  );
-}
-
-// ─── PostCard (side panel) ────────────────────────────────────────────────────
-
-function PostCard({
-  post,
-  onDelete,
-  onOpen,
-}: {
-  post: Post;
-  onDelete: (post: Post) => void;
-  onOpen: (post: Post) => void;
-}) {
-  const [hoverDel, setHoverDel] = useState(false);
-
-  const dateIso = post.scheduled_for ?? post.published_at ?? null;
-
-  const handleDelete = () => onDelete(post);
-
-  return (
-    <div
-      onClick={() => onOpen(post)}
-      style={{
-        padding: "12px 14px",
-        borderRadius: 12,
-        background: "var(--color-elevated)",
-        border: "1px solid var(--color-border)",
-        marginBottom: 8,
-        animation: "var(--animate-fade-up)",
-        cursor: "pointer",
-      }}
-    >
-      {/* Status + time + delete row */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 8,
-          gap: 8,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-          <span
-            style={{
-              fontSize: 9,
-              fontFamily: "var(--font-mono)",
-              color: STATUS_COLOR[post.status],
-              background: STATUS_BG[post.status],
-              padding: "2px 6px",
-              borderRadius: 4,
-              textTransform: "uppercase",
-              letterSpacing: "0.06em",
-              flexShrink: 0,
-            }}
-          >
-            {post.status}
-          </span>
-          {dateIso && (
-            <span
-              style={{
-                fontSize: 11,
-                fontFamily: "var(--font-mono)",
-                color: "var(--color-muted)",
-              }}
-            >
-              {fmt12(dateIso)}
-            </span>
-          )}
-        </div>
-
-        {DELETABLE.includes(post.status) && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete();
-            }}
-            onMouseEnter={() => setHoverDel(true)}
-            onMouseLeave={() => setHoverDel(false)}
-            style={{
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              color: hoverDel ? "var(--color-danger)" : "var(--color-muted)",
-              padding: 4,
-              borderRadius: 4,
-              display: "flex",
-              alignItems: "center",
-              flexShrink: 0,
-              transition: "color 0.12s",
-            }}
-          >
-            <svg width="13" height="13" fill="none" viewBox="0 0 14 14">
-              <path
-                d="M2 4h10M5 4V3a1 1 0 011-1h2a1 1 0 011 1v1M6 7v3M8 7v3M3 4l.75 7a1 1 0 001 .9h4.5a1 1 0 001-.9L11 4"
-                stroke="currentColor"
-                strokeWidth="1.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-        )}
-      </div>
-
-      {/* Content */}
-      <p
-        style={{
-          fontSize: 13,
-          fontFamily: "var(--font-sans)",
-          color: "var(--color-cream)",
-          lineHeight: 1.55,
-          margin: 0,
-          display: "-webkit-box",
-          WebkitLineClamp: 4,
-          WebkitBoxOrient: "vertical",
-          overflow: "hidden",
-        }}
-      >
-        {post.content}
-      </p>
-
-      {/* Thread badge */}
-      {post.thread_id && post.thread_order && (
-        <div
-          style={{
-            marginTop: 8,
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-          }}
-        >
-          <svg width="10" height="10" fill="none" viewBox="0 0 10 10">
-            <path
-              d="M2 2v4a1 1 0 001 1h3M6 5.5l1 1.5-1 1.5"
-              stroke="var(--color-muted)"
-              strokeWidth="1.1"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span
-            style={{
-              fontSize: 10,
-              fontFamily: "var(--font-mono)",
-              color: "var(--color-muted)",
-            }}
-          >
-            thread · tweet {post.thread_order}
-          </span>
-        </div>
-      )}
-
-      {/* Error message on failed */}
-      {post.status === "failed" && post.error_message && (
-        <p
-          style={{
-            fontSize: 11,
-            fontFamily: "var(--font-mono)",
-            color: "var(--color-danger)",
-            marginTop: 8,
-            marginBottom: 0,
-          }}
-        >
-          {post.error_message}
-        </p>
-      )}
-    </div>
-  );
-}
-
-// ─── ContentCalendar ──────────────────────────────────────────────────────────
+// ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function ContentCalendar() {
-  useStore($user); // subscribe for re-render on auth changes
-
-  const today = new Date();
-  const [year, setYear] = useState(today.getFullYear());
-  const [month, setMonth] = useState(today.getMonth());
+  const user = useStore($user);
+  const today = useMemo(() => new Date(), []);
+  
+  const [view, setView] = useState<"month" | "week">("month");
+  const [currentDate, setCurrentDate] = useState(new Date());
+  
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [selectedDay, setSelectedDay] = useState<Date | null>(new Date()); // Default to today
+  
   const [deleteTarget, setDeleteTarget] = useState<Post | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   const [detailPostId, setDetailPostId] = useState<string | null>(null);
   const [detailPost, setDetailPost] = useState<Post | null>(null);
-  const [detailQuoteSourcePost, setDetailQuoteSourcePost] = useState<Post | null>(null);
-  const [detailAnalytics, setDetailAnalytics] = useState<PostAnalytics[]>([]);
-  const [detailMediaUrls, setDetailMediaUrls] = useState<Record<string, string>>({});
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [detailActiveMediaIndex, setDetailActiveMediaIndex] = useState(0);
-  const [scheduleTargetPostId, setScheduleTargetPostId] = useState<string | null>(null);
+
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
 
   const fetchPosts = useCallback(async () => {
     setLoading(true);
@@ -433,7 +96,7 @@ export default function ContentCalendar() {
       const data = await api.get<Post[]>("/posts?limit=500");
       setPosts(data);
     } catch {
-      // silent — auth errors handled by api.ts
+      // silent
     } finally {
       setLoading(false);
     }
@@ -443,554 +106,433 @@ export default function ContentCalendar() {
     fetchPosts();
   }, [fetchPosts]);
 
-  // Month navigation
-  const goToPrev = () => {
-    setSelectedDay(null);
-    if (month === 0) {
-      setYear((y) => y - 1);
-      setMonth(11);
+  const handlePrev = () => {
+    if (view === "month") {
+      setCurrentDate(new Date(year, month - 1, 1));
     } else {
-      setMonth((m) => m - 1);
+      const d = new Date(currentDate);
+      d.setDate(d.getDate() - 7);
+      setCurrentDate(d);
     }
   };
-  const goToNext = () => {
-    setSelectedDay(null);
-    if (month === 11) {
-      setYear((y) => y + 1);
-      setMonth(0);
+
+  const handleNext = () => {
+    if (view === "month") {
+      setCurrentDate(new Date(year, month + 1, 1));
     } else {
-      setMonth((m) => m + 1);
+      const d = new Date(currentDate);
+      d.setDate(d.getDate() + 7);
+      setCurrentDate(d);
     }
   };
-  const goToToday = () => {
-    setYear(today.getFullYear());
-    setMonth(today.getMonth());
-    setSelectedDay(today.getDate());
+
+  const handleToday = () => {
+    setCurrentDate(new Date());
+    setSelectedDay(new Date());
   };
 
-  // Build grid cells: null for padding, number for day
-  const firstDay = firstWeekday(year, month);
-  const numDays = daysInMonth(year, month);
-  const cells: (number | null)[] = [
-    ...Array<null>(firstDay).fill(null),
-    ...Array.from({ length: numDays }, (_, i) => i + 1),
-  ];
-  while (cells.length % 7 !== 0) cells.push(null);
+  const postsByDateMap = useMemo(() => {
+    const map = new Map<string, Post[]>();
+    posts.forEach(p => {
+      const d = calendarDate(p);
+      if (!d) return;
+      const key = d.toDateString();
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(p);
+    });
+    return map;
+  }, [posts]);
 
-  // Index posts by day-of-month for this year/month
-  const postsByDay = new Map<number, Post[]>();
-  for (const post of posts) {
-    const d = calendarDate(post);
-    if (!d || d.getFullYear() !== year || d.getMonth() !== month) continue;
-    const day = d.getDate();
-    const bucket = postsByDay.get(day) ?? [];
-    bucket.push(post);
-    postsByDay.set(day, bucket);
-  }
+  const selectedPosts = useMemo(() => {
+    if (!selectedDay) return [];
+    const list = postsByDateMap.get(selectedDay.toDateString()) ?? [];
+    return [...list].sort((a, b) => {
+      const ta = calendarDate(a)?.getTime() ?? 0;
+      const tb = calendarDate(b)?.getTime() ?? 0;
+      return ta - tb;
+    });
+  }, [selectedDay, postsByDateMap]);
 
-  const isCurrentMonth =
-    month === today.getMonth() && year === today.getFullYear();
+  const monthCells = useMemo(() => {
+    const first = firstWeekday(year, month);
+    const num = daysInMonth(year, month);
+    const cells: (Date | null)[] = [];
+    for (let i = 0; i < first; i++) cells.push(null);
+    for (let i = 1; i <= num; i++) cells.push(new Date(year, month, i));
+    while (cells.length % 7 !== 0) cells.push(null);
+    return cells;
+  }, [year, month]);
 
-  const selectedPosts = selectedDay
-    ? (postsByDay.get(selectedDay) ?? []).sort((a, b) => {
-        const ta = calendarDate(a)?.getTime() ?? 0;
-        const tb = calendarDate(b)?.getTime() ?? 0;
-        return ta - tb;
-      })
-    : [];
+  const weekDays = useMemo(() => {
+    const start = new Date(currentDate);
+    const day = start.getDay();
+    start.setDate(start.getDate() - day);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      return d;
+    });
+  }, [currentDate]);
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
       await api.delete(`/posts/${deleteTarget.id}`);
-      setPosts((prev) => prev.filter((p) => p.id !== deleteTarget.id));
-      setDeleteError(null);
+      setPosts(prev => prev.filter(p => p.id !== deleteTarget.id));
       setDeleteTarget(null);
+      setDetailPostId(null);
     } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : "Delete failed.");
+      setDeleteError(e instanceof Error ? e.message : "Delete failed");
     } finally {
       setDeleting(false);
     }
   };
 
-  const openDetail = async (postId: string) => {
-    setDetailPostId(postId);
-    setDetailLoading(true);
-    setDetailError(null);
-    try {
-      const [postData, analyticsData] = await Promise.all([
-        api.get<Post>(`/posts/${postId}?include_deleted=true`),
-        api.get<PostAnalytics[]>(`/analytics/posts/${postId}`).catch(() => []),
-      ]);
-      const signedEntries = await Promise.all(
-        (postData.media ?? [])
-          .filter((m) => !!m.key)
-          .map(async (m) => {
-            const res = await api.get<DownloadUrlResponse>(`/storage/download-url?file_key=${encodeURIComponent(m.key)}`);
-            return [m.key, res.download_url] as const;
-          })
-      );
-
-      setDetailPost(postData);
-      setDetailAnalytics(analyticsData);
-      setDetailMediaUrls(Object.fromEntries(signedEntries));
-      setDetailActiveMediaIndex(0);
-      if (postData.quote_of_platform_post_id) {
-        const sourcePost = await api
-          .get<Post>(`/posts/by-platform-id/${encodeURIComponent(postData.quote_of_platform_post_id)}?include_deleted=true`)
-          .catch(() => null);
-        setDetailQuoteSourcePost(sourcePost);
-      } else {
-        setDetailQuoteSourcePost(null);
-      }
-    } catch (e) {
-      setDetailError(e instanceof Error ? e.message : "Failed to load post details");
-      setDetailPost(null);
-      setDetailQuoteSourcePost(null);
-      setDetailAnalytics([]);
-      setDetailMediaUrls({});
-    } finally {
-      setDetailLoading(false);
-    }
-  };
-
-  const closeDetail = () => {
-    setDetailPostId(null);
-    setDetailPost(null);
-    setDetailQuoteSourcePost(null);
-    setDetailAnalytics([]);
-    setDetailMediaUrls({});
-    setDetailError(null);
-  };
-
-  const detailLatest = detailAnalytics[detailAnalytics.length - 1] ?? null;
-
-  const refreshDetail = async () => {
-    if (!detailPostId) return;
-    await openDetail(detailPostId);
-  };
-
-  const actionRepost = async () => {
-    if (!detailPost) return;
-    await api.post(`/posts/${detailPost.id}/repost`, {});
-    await refreshDetail();
-    await fetchPosts();
-  };
-
-  const actionRefreshAnalytics = async () => {
-    if (!detailPost) return;
-    await api.post(`/analytics/posts/${detailPost.id}/refresh`, {});
-    await refreshDetail();
-    await fetchPosts();
-  };
-
-  const actionQuote = async () => {
-    if (!detailPost) return;
-    const sourcePost = detailPost;
-    closeDetail();
-    const text = window.prompt("Quote text:");
-    if (!text || !text.trim()) return;
-    await api.post(`/posts/${sourcePost.id}/quote`, { content: text.trim(), scheduled_for: null, media: null });
-    await refreshDetail();
-    await fetchPosts();
-  };
-
-  const actionEditContent = async () => {
-    if (!detailPost) return;
-    window.location.href = `/compose?edit_post_id=${encodeURIComponent(detailPost.id)}`;
-  };
-
-  const actionDeleteFromDetail = async () => {
-    if (!detailPost) return;
-    setDeleteError(null);
-    setDeleteTarget(detailPost);
-  };
-
-  const openPostFromCalendar = (post: Post) => {
-    if (post.status === "draft" && !post.is_deleted) {
-      window.location.href = `/compose?draft_post_id=${encodeURIComponent(post.id)}`;
-      return;
-    }
-    void openDetail(post.id);
-  };
-
-  // Compose link — pre-fill date if a day is selected
-  const composeDateParam =
-    selectedDay != null
-      ? `?date=${year}-${String(month + 1).padStart(2, "0")}-${String(selectedDay).padStart(2, "0")}`
-      : "";
-
   return (
-    <div
-      className="w-full max-w-5xl mx-auto px-4 py-8"
-      style={{ animation: "var(--animate-fade-up)" }}
-    >
-      {scheduleTargetPostId && (
-        <SchedulePickerModal
-          initialISO={detailPost?.scheduled_for ?? null}
-          onClose={() => setScheduleTargetPostId(null)}
-          onConfirm={async (localIso) => {
-            await api.patch(`/posts/${scheduleTargetPostId}`, {
-              scheduled_for: new Date(localIso).toISOString(),
-            });
-            setScheduleTargetPostId(null);
-            await refreshDetail();
-            await fetchPosts();
-          }}
-        />
-      )}
+    <div className="w-full max-w-full min-h-screen bg-[var(--color-ink)]/50">
+      <div className="flex h-screen overflow-hidden">
+        
+        {/* ─── Column 1: Master Calendar View ──────────────────────────── */}
+        <div className="flex-1 flex flex-col min-w-0 border-r border-[var(--color-border)]/30">
+          
+          {/* Calendar Header Controls */}
+          <header className="p-6 border-b border-[var(--color-border)]/20 bg-[var(--color-ink)]/20 backdrop-blur-xl flex items-center justify-between z-20">
+            <div className="space-y-1">
+              <h1 className="text-3xl font-black text-[var(--color-cream)] tracking-tighter flex items-center gap-3">
+                <CalendarIcon className="w-7 h-7 text-[var(--color-accent)]" />
+                {view === "month" ? MONTHS[month] : "Week View"} <span className="text-[var(--color-muted)]">{year}</span>
+              </h1>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <div className="flex bg-[var(--color-elevated)]/40 p-1 rounded-xl border border-white/5 shadow-inner">
+                <Button 
+                  variant={view === "month" ? "secondary" : "ghost"} 
+                  size="sm" 
+                  onClick={() => setView("month")}
+                  className="rounded-lg px-4 gap-2 font-bold transition-all"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                  Month
+                </Button>
+                <Button 
+                  variant={view === "week" ? "secondary" : "ghost"} 
+                  size="sm" 
+                  onClick={() => setView("week")}
+                  className="rounded-lg px-4 gap-2 font-bold transition-all"
+                >
+                  <LayoutList className="w-4 h-4" />
+                  Week
+                </Button>
+              </div>
+
+              <div className="h-8 w-px bg-[var(--color-border)]/30 mx-2" />
+
+              <div className="flex items-center gap-1.5">
+                <Button variant="ghost" size="icon" onClick={handlePrev} className="rounded-full hover:bg-[var(--color-elevated)]">
+                  <ChevronLeft className="w-5 h-5" />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  onClick={handleToday}
+                  className="text-[10px] font-bold uppercase tracking-widest px-4 h-8 bg-[var(--color-elevated)]/20 rounded-full border border-white/5"
+                >
+                  Today
+                </Button>
+                <Button variant="ghost" size="icon" onClick={handleNext} className="rounded-full hover:bg-[var(--color-elevated)]">
+                  <ChevronRight className="w-5 h-5" />
+                </Button>
+              </div>
+            </div>
+          </header>
+
+          {/* Calendar Content Area */}
+          <main className="flex-1 overflow-y-auto p-4 md:p-8 scrollbar-hide bg-gradient-to-br from-transparent to-[var(--color-accent)]/5">
+            <div className="max-w-5xl mx-auto space-y-4">
+              
+              {/* Day Headers */}
+              <div className="grid grid-cols-7 gap-2 md:gap-4 mb-2">
+                {WEEKDAYS.map(d => (
+                  <div key={d} className="text-center text-[10px] font-black text-[var(--color-muted)] uppercase tracking-[0.2em] font-mono">
+                    {d}
+                  </div>
+                ))}
+              </div>
+
+              {/* Grid with Dynamic Sizing Logic */}
+              <AnimatePresence mode="wait">
+                <motion.div 
+                  key={view + currentDate.toDateString()}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="grid grid-cols-7 gap-2 md:gap-4 auto-rows-min"
+                >
+                  {(view === "month" ? monthCells : weekDays).map((date, idx) => {
+                    const postsForDay = date ? (postsByDateMap.get(date.toDateString()) ?? []) : [];
+                    const isToday = !!(date && today.toDateString() === date.toDateString());
+                    const isSelected = !!(date && selectedDay?.toDateString() === date.toDateString());
+                    
+                    // Dynamic Sizing: Days with >3 posts span more rows if in week view, or just grow vertically
+                    return (
+                      <CalendarDayCard
+                        key={idx}
+                        date={date}
+                        posts={postsForDay}
+                        isSelected={isSelected}
+                        isToday={isToday}
+                        onClick={() => date && setSelectedDay(date)}
+                      />
+                    );
+                  })}
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          </main>
+        </div>
+
+        {/* ─── Column 2: Day Detailed View ─────────────────────────────── */}
+        <aside className="w-[420px] bg-[var(--color-elevated)]/10 backdrop-blur-3xl flex flex-col shadow-[-20px_0_50px_rgba(0,0,0,0.3)]">
+          <header className="p-8 space-y-6">
+            <div className="flex items-center justify-between">
+              <Badge variant="amber" className="px-3 py-1 font-mono uppercase tracking-[0.2em]">
+                <Clock className="w-3 h-3 mr-2" />
+                Timeline Manifest
+              </Badge>
+              <Button size="icon" variant="secondary" asChild className="rounded-full shadow-2xl h-12 w-12 hover:scale-110 active:scale-95 transition-all">
+                <a href={`/compose?date=${selectedDay?.toISOString().split('T')[0]}`}>
+                  <Plus className="w-6 h-6" />
+                </a>
+              </Button>
+            </div>
+
+            <div className="space-y-1">
+              <h2 className="text-4xl font-black text-[var(--color-cream)] tracking-tighter leading-none">
+                {selectedDay?.toLocaleDateString('en-US', { day: 'numeric', month: 'long' })}
+              </h2>
+              <p className="text-xs font-mono text-[var(--color-muted)] uppercase tracking-widest pt-1">
+                {selectedDay?.toLocaleDateString('en-US', { weekday: 'long' })} · {selectedPosts.length} Operations
+              </p>
+            </div>
+
+            <div className="relative group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-muted)] group-focus-within:text-[var(--color-accent)] transition-colors" />
+              <input 
+                placeholder="Search events..." 
+                className="w-full bg-[var(--color-ink)]/40 border border-white/5 rounded-xl py-2.5 pl-10 pr-4 text-sm font-medium focus:ring-1 focus:ring-[var(--color-accent)]/30 focus:border-[var(--color-accent)]/50 transition-all outline-none"
+              />
+            </div>
+          </header>
+
+          <div className="flex-1 overflow-y-auto px-6 pb-10 scrollbar-hide space-y-4">
+            <AnimatePresence mode="popLayout">
+              {selectedPosts.length > 0 ? (
+                selectedPosts.map((post, i) => (
+                  <motion.div
+                    key={post.id}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ delay: i * 0.05 }}
+                  >
+                    <DetailPostCard 
+                      post={post} 
+                      onClick={() => {
+                        setDetailPostId(post.id);
+                        setDetailPost(post);
+                        setDetailError(null);
+                        setDetailActiveMediaIndex(0);
+                      }}
+                    />
+                  </motion.div>
+                ))
+              ) : (
+                <div className="h-64 flex flex-col items-center justify-center text-center p-8 space-y-4 opacity-30 grayscale hover:grayscale-0 transition-all duration-500">
+                  <div className="p-5 rounded-3xl bg-[var(--color-ink)] border border-white/5">
+                    <Zap className="w-10 h-10 text-[var(--color-muted)]" />
+                  </div>
+                  <p className="font-mono text-xs uppercase tracking-[0.3em] text-[var(--color-muted)]">No Broadcasts Slotted</p>
+                </div>
+              )}
+            </AnimatePresence>
+          </div>
+        </aside>
+      </div>
 
       <PostDetailsModal
         isOpen={!!detailPostId}
-        onClose={closeDetail}
+        onClose={() => setDetailPostId(null)}
         post={detailPost}
         loading={detailLoading}
         error={detailError}
-        mediaUrls={detailMediaUrls}
         activeMediaIndex={detailActiveMediaIndex}
         onActiveMediaIndexChange={setDetailActiveMediaIndex}
-        quoteSourceContent={detailQuoteSourcePost?.content ?? null}
         actions={
-          <>
-            {detailPost?.status === "published" && !detailPost.is_deleted && <button onClick={() => { void actionRefreshAnalytics(); }} style={calendarDetailButton(false)}>Refresh now</button>}
-            {detailPost?.status === "published" && !detailPost.is_deleted && <button onClick={() => { void actionRepost(); }} style={calendarDetailButton(false)}>{detailPost.reposted_at ? "Undo repost" : "Repost"}</button>}
-            {detailPost?.status === "published" && !detailPost.is_deleted && <button onClick={() => { void actionQuote(); }} style={calendarDetailButton(false)}>Quote</button>}
-            {(detailPost?.status === "draft" || detailPost?.status === "scheduled") && !detailPost?.is_deleted && (
-              <button onClick={() => { void actionEditContent(); }} style={calendarDetailButton(false)}>Edit</button>
-            )}
-            {(detailPost?.status === "draft" || detailPost?.status === "scheduled") && !detailPost?.is_deleted && (
-              <button
-                onClick={() => { void actionDeleteFromDetail(); }}
-                style={{
-                  ...calendarDetailButton(detailPost.is_deleted),
-                  border: "1px solid color-mix(in srgb, var(--color-danger) 45%, transparent)",
-                  color: "var(--color-danger)",
-                }}
-              >
-                Delete
-              </button>
-            )}
-          </>
-        }
-      >
-        {detailPost?.status === "published" && !detailPost.is_deleted && (
-          <div style={{ marginTop: 12, border: "1px solid var(--color-border)", borderRadius: 14, padding: 12, background: "color-mix(in srgb, var(--color-elevated) 90%, transparent)" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 10 }}>
-              {[
-                { label: "Impressions", value: detailLatest?.impressions ?? 0 },
-                { label: "Likes", value: detailLatest?.likes ?? 0 },
-                { label: "Reposts", value: detailLatest?.retweets ?? 0 },
-                { label: "Replies", value: detailLatest?.replies ?? 0 },
-                { label: "Quoted", value: detailLatest?.quoted_count ?? 0 },
-                { label: "Bookmarks", value: detailLatest?.bookmarks ?? 0 },
-              ].map((metric) => (
-                <div key={metric.label} style={{ border: "1px solid var(--color-border)", borderRadius: 10, padding: "8px 10px", background: "color-mix(in srgb, var(--color-ink) 18%, transparent)" }}>
-                  <div style={{ fontSize: 10, color: "var(--color-muted)", fontFamily: "var(--font-mono)", textTransform: "uppercase" }}>{metric.label}</div>
-                  <div style={{ marginTop: 4, fontSize: 21, color: "var(--color-cream)", fontFamily: "var(--font-mono)", fontWeight: 700 }}>{metric.value.toLocaleString()}</div>
-                </div>
-              ))}
+          detailPost && !detailPost.is_deleted && (
+            <div className="flex items-center gap-3">
+              {(detailPost.status === "draft" || detailPost.status === "scheduled") && (
+                <Button 
+                  variant="secondary" 
+                  size="sm" 
+                  onClick={() => window.location.href = `/compose?edit_post_id=${detailPost.id}`}
+                  className="rounded-xl px-6 font-bold"
+                >
+                  <Edit2 className="w-4 h-4 mr-2" />
+                  Edit Post
+                </Button>
+              )}
+              {["draft", "scheduled", "failed"].includes(detailPost.status) && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setDeleteTarget(detailPost)}
+                  className="rounded-xl px-6 text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 font-bold"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete
+                </Button>
+              )}
             </div>
-          </div>
-        )}
-      </PostDetailsModal>
+          )
+        }
+      />
 
       <ConfirmDeleteModal
         open={!!deleteTarget}
         busy={deleting}
-        previewText={deleteTarget?.content.slice(0, 120) ?? ""}
+        previewText={deleteTarget?.content.slice(0, 50) ?? ""}
         errorMessage={deleteError}
-        onCancel={() => {
-          setDeleteTarget(null);
-          setDeleteError(null);
-        }}
-        onConfirm={() => {
-          void confirmDelete();
-        }}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
       />
-
-      {/* ── Header ────────────────────────────────────────────────────── */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "flex-end",
-          marginBottom: 24,
-          flexWrap: "wrap",
-          gap: 12,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {!isCurrentMonth && (
-            <button
-              onClick={goToToday}
-              style={{
-                fontSize: 12,
-                fontFamily: "var(--font-mono)",
-                background: "var(--color-elevated)",
-                border: "1px solid var(--color-border)",
-                color: "var(--color-muted)",
-                padding: "4px 12px",
-                borderRadius: 8,
-                cursor: "pointer",
-              }}
-            >
-              Today
-            </button>
-          )}
-
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <NavBtn onClick={goToPrev} label="Previous month">
-              <svg width="14" height="14" fill="none" viewBox="0 0 14 14">
-                <path
-                  d="M9 3L5 7l4 4"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </NavBtn>
-
-            <span
-              style={{
-                fontSize: 14,
-                fontFamily: "var(--font-mono)",
-                color: "var(--color-cream)",
-                minWidth: 136,
-                textAlign: "center",
-              }}
-            >
-              {MONTHS[month]} {year}
-            </span>
-
-            <NavBtn onClick={goToNext} label="Next month">
-              <svg width="14" height="14" fill="none" viewBox="0 0 14 14">
-                <path
-                  d="M5 3l4 4-4 4"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </NavBtn>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Legend ────────────────────────────────────────────────────── */}
-      <div style={{ display: "flex", gap: 14, marginBottom: 18, flexWrap: "wrap" }}>
-        {(Object.entries(STATUS_COLOR) as [PostStatus, string][]).map(
-          ([status, color]) => (
-            <div key={status} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <div
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: "50%",
-                  background: color,
-                  flexShrink: 0,
-                }}
-              />
-              <span
-                style={{
-                  fontSize: 11,
-                  fontFamily: "var(--font-mono)",
-                  color: "var(--color-muted)",
-                  textTransform: "capitalize",
-                }}
-              >
-                {status}
-              </span>
-            </div>
-          )
-        )}
-      </div>
-
-      {/* ── Grid + Panel ──────────────────────────────────────────────── */}
-      <div
-        style={{
-          display: "grid",
-          gap: 16,
-          alignItems: "flex-start",
-          gridTemplateColumns:
-            selectedDay != null
-              ? "minmax(0, 1fr) minmax(240px, 272px)"
-              : "minmax(0, 1fr)",
-        }}
-      >
-        {/* Calendar grid */}
-        <div style={{ minWidth: 0 }}>
-          {/* Weekday labels */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(7, 1fr)",
-              gap: 6,
-              marginBottom: 6,
-            }}
-          >
-            {WEEKDAYS.map((d) => (
-              <div
-                key={d}
-                style={{
-                  textAlign: "center",
-                  fontSize: 11,
-                  fontFamily: "var(--font-mono)",
-                  color: "var(--color-muted)",
-                  padding: "4px 0",
-                }}
-              >
-                {d}
-              </div>
-            ))}
-          </div>
-
-          {/* Day cells */}
-          {loading ? (
-            <div
-              style={{
-                textAlign: "center",
-                padding: 64,
-                color: "var(--color-muted)",
-                fontFamily: "var(--font-mono)",
-                fontSize: 13,
-              }}
-            >
-              Loading calendar…
-            </div>
-          ) : (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(7, 1fr)",
-                gap: 6,
-              }}
-            >
-              {cells.map((day, idx) => (
-                <DayCell
-                  key={idx}
-                  day={day}
-                  posts={day != null ? (postsByDay.get(day) ?? []) : []}
-                  isToday={
-                    day != null &&
-                    isCurrentMonth &&
-                    day === today.getDate()
-                  }
-                  isSelected={day === selectedDay}
-                  faded={day === null}
-                  onClick={() => {
-                    if (day == null) return;
-                    setSelectedDay((prev) => (prev === day ? null : day));
-                  }}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Side panel */}
-        {selectedDay != null && (
-          <div
-            style={{
-              width: "100%",
-              maxWidth: 272,
-              animation: "var(--animate-fade-up)",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 12,
-              }}
-            >
-              <h2
-                style={{
-                  fontSize: 14,
-                  fontWeight: 600,
-                  margin: 0,
-                  color: "var(--color-cream)",
-                  fontFamily: "var(--font-sans)",
-                }}
-              >
-                {MONTHS[month]} {selectedDay}
-              </h2>
-
-              <a
-                href={`/compose${composeDateParam}`}
-                style={{
-                  fontSize: 11,
-                  fontFamily: "var(--font-mono)",
-                  color: "var(--color-accent)",
-                  background:
-                    "color-mix(in srgb, var(--color-accent) 10%, transparent)",
-                  border:
-                    "1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)",
-                  padding: "3px 9px",
-                  borderRadius: 6,
-                  textDecoration: "none",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                }}
-              >
-                <svg width="10" height="10" fill="none" viewBox="0 0 10 10">
-                  <path
-                    d="M5 2v6M2 5h6"
-                    stroke="currentColor"
-                    strokeWidth="1.4"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                New post
-              </a>
-            </div>
-
-            {selectedPosts.length === 0 ? (
-              <div
-                style={{
-                  padding: "28px 16px",
-                  borderRadius: 12,
-                  background: "var(--color-elevated)",
-                  border: "1px solid var(--color-border)",
-                  textAlign: "center",
-                }}
-              >
-                <p
-                  style={{
-                    fontSize: 12,
-                    fontFamily: "var(--font-mono)",
-                    color: "var(--color-muted)",
-                    margin: 0,
-                  }}
-                >
-                  Nothing scheduled.
-                </p>
-              </div>
-            ) : (
-              selectedPosts.map((post) => (
-                <PostCard key={post.id} post={post} onDelete={setDeleteTarget} onOpen={openPostFromCalendar} />
-              ))
-            )}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
 
-function calendarDetailButton(disabled: boolean): React.CSSProperties {
-  return {
-    borderRadius: 999,
-    border: "1px solid var(--color-border)",
-    background: "transparent",
-    color: "var(--color-cream)",
-    padding: "8px 12px",
-    fontFamily: "var(--font-mono)",
-    fontSize: 12,
-    opacity: disabled ? 0.45 : 1,
-  };
+// ─── Sub-Components ──────────────────────────────────────────────────────────
+
+function CalendarDayCard({ date, posts, isToday, isSelected, onClick }: {
+  date: Date | null;
+  posts: Post[];
+  isToday: boolean;
+  isSelected: boolean;
+  onClick: () => void;
+}) {
+  if (!date) return <div className="p-4 opacity-0 h-16" />;
+
+  const hasPosts = posts.length > 0;
+  // SMARTER DYNAMIC SIZING: If a day has many posts, it becomes naturally taller
+  // We keep width fixed to preserve the 7-day column alignment, but let height respond to content.
+  
+  return (
+    <motion.button
+      onClick={onClick}
+      whileHover={{ scale: 1.01 }}
+      whileTap={{ scale: 0.98 }}
+      className={cn(
+        "relative w-full text-left rounded-2xl border transition-all duration-300 overflow-hidden flex flex-col group",
+        "min-h-[90px] p-2 md:p-3",
+        isSelected 
+          ? "bg-gradient-to-br from-[var(--color-accent)]/20 to-[var(--color-primary)]/10 border-[var(--color-accent)] shadow-[0_20px_40px_rgba(var(--color-primary-rgb),0.2)] z-10" 
+          : hasPosts 
+            ? "bg-[var(--color-elevated)]/30 border-white/10 hover:border-white/20" 
+            : "bg-[var(--color-ink)]/10 border-white/5 hover:border-white/10 grayscale opacity-90 hover:grayscale-0",
+        isToday && !isSelected && "ring-1 ring-[var(--color-accent)]/30 bg-[var(--color-accent)]/5"
+      )}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <span className={cn(
+          "size-7 flex items-center justify-center rounded-lg text-xs font-black transition-all",
+          isToday 
+            ? "bg-[var(--color-accent)] text-[#0f1117] shadow-[0_0_10px_rgba(var(--color-accent-rgb),0.5)]" 
+            : "text-[var(--color-cream)]/40 font-mono group-hover:text-[var(--color-cream)]"
+        )}>
+          {date.getDate()}
+        </span>
+        {hasPosts && (
+          <div className="flex -space-x-1.5 overflow-hidden">
+            {posts.slice(0, 3).map((p, i) => (
+              <div key={i} className={cn("size-2.5 rounded-full border border-[var(--color-ink)] shadow-sm", getStatusColor(p.status))} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-1 w-full overflow-hidden">
+        {posts.slice(0, 5).map(post => (
+          <div key={post.id} className="h-4 bg-[var(--color-ink)]/40 rounded px-1.5 flex items-center gap-1.5 border border-white/5">
+            <div className={cn("size-1.5 rounded-full flex-shrink-0", getStatusColor(post.status))} />
+            <span className="text-[8px] font-mono whitespace-nowrap overflow-hidden text-ellipsis text-[var(--color-muted)] uppercase tracking-tighter">
+              {post.content.slice(0, 15)}
+            </span>
+          </div>
+        ))}
+        {posts.length > 5 && (
+          <p className="text-[8px] font-bold text-[var(--color-muted)] font-mono pl-1">
+            + {posts.length - 5} more broadcasts
+          </p>
+        )}
+      </div>
+    </motion.button>
+  );
+}
+
+function DetailPostCard({ post, onClick }: { post: Post; onClick: () => void }) {
+  const time = formatTime(post.scheduled_for ?? post.published_at ?? post.created_at);
+  const [platformIcon, setPlatformIcon] = useState<any>(<Twitter className="w-3.5 h-3.5" />);
+
+  return (
+    <Card 
+      onClick={onClick}
+      className={cn(
+        "group cursor-pointer border-white/5 hover:border-[var(--color-accent)]/30 backdrop-blur-md transition-all duration-300",
+        "bg-[var(--color-ink)]/20 hover:bg-[var(--color-ink)]/40 shadow-sm"
+      )}
+    >
+      <CardContent className="p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <Badge variant={STATUS_VARIANTS[post.status]} className="font-mono text-[9px] px-2 uppercase tracking-widest ring-1 ring-white/5">
+            {post.status}
+          </Badge>
+          <div className="flex items-center gap-2 text-[10px] font-mono text-[var(--color-muted)]">
+            <div className="p-1 rounded-md bg-[var(--color-ink)] border border-white/5">
+              {platformIcon}
+            </div>
+            {time}
+          </div>
+        </div>
+
+        <p className="text-sm text-[var(--color-cream)]/90 leading-relaxed font-sans line-clamp-3">
+          {post.content}
+        </p>
+
+        {post.media && post.media.length > 0 && (
+          <div className="grid grid-cols-4 gap-1.5 h-10 overflow-hidden rounded-lg">
+            {post.media.slice(0, 4).map((m, i) => (
+              <img key={i} src={m.public_url} className="w-full h-full object-cover opacity-60 hover:opacity-100 transition-opacity" />
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className="text-[10px] font-bold text-[var(--color-accent)] flex items-center gap-1 uppercase tracking-widest">
+            Detailed Intel
+            <ChevronRightIcon className="w-3 h-3 pt-0.5" />
+          </span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function getStatusColor(status: PostStatus) {
+  switch (status) {
+    case 'draft': return 'bg-[var(--color-muted)]';
+    case 'scheduled': return 'bg-[var(--color-accent)] shadow-[0_0_8px_rgba(var(--color-accent-rgb),0.5)]';
+    case 'publishing': return 'bg-[var(--color-amber)]';
+    case 'published': return 'bg-[var(--color-success)] shadow-[0_0_8px_rgba(var(--color-success-rgb),0.5)]';
+    case 'failed': return 'bg-[var(--color-danger)]';
+    default: return 'bg-white';
+  }
 }

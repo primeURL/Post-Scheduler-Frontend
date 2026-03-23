@@ -11,6 +11,25 @@ import type {
 } from "../lib/types";
 import ConfirmDeleteModal from "./ConfirmDeleteModal";
 import SchedulePickerModal from "./SchedulePickerModal";
+import PostDetailsModal from "./PostDetailsModal";
+import {
+  BarChart3,
+  TrendingUp,
+  RefreshCcw,
+  Trash2,
+  Edit2,
+  Share2,
+  Repeat,
+  Quote as QuoteIcon,
+  Clock as ClockIcon,
+  ChevronRight,
+  Zap,
+  CheckCircle2
+} from "lucide-react";
+import { Badge } from "./ui/Badge";
+import { Button } from "./ui/Button";
+import { Card, CardContent } from "./ui/Card";
+import { cn } from "../lib/utils";
 
 function fmtDateTime(value: string | null): string {
   if (!value) return "-";
@@ -590,52 +609,73 @@ export default function AnalyticsDashboard() {
       )}
 
 
-      <div className="analytics-tab-bar" style={{ marginBottom: 20 }}>
+      <div className="flex flex-wrap items-center gap-2 mb-8 p-1.5 bg-[#0A0E14]/60 backdrop-blur-md rounded-2xl border border-white/5 w-fit">
         {[
-          { key: "published", label: "Published", icon: "✓" },
-          { key: "scheduled", label: "Scheduled", icon: "◷" },
-          { key: "draft", label: "Drafts", icon: "✎" },
-          { key: "deleted", label: "Deleted", icon: "✕" },
-          { key: "all", label: "All", icon: "⊞" },
+          { key: "published", label: "Published", icon: CheckCircle2 },
+          { key: "scheduled", label: "Scheduled", icon: ClockIcon },
+          { key: "draft", label: "Drafts", icon: Edit2 },
+          { key: "deleted", label: "Deleted", icon: Trash2 },
+          { key: "all", label: "All Assets", icon: BarChart3 },
         ].map((item) => {
           const selected = activeFilter === item.key;
           const count = tabCounts[item.key as keyof typeof tabCounts];
           return (
-            <button
+            <Button
               key={item.key}
+              variant={selected ? "secondary" : "ghost"}
+              size="sm"
               onClick={() => setActiveFilter(item.key as AnalyticsFilter)}
-              className={`analytics-tab${selected ? " analytics-tab--active" : ""}`}
+              className={cn(
+                "rounded-xl h-9 px-4 font-bold transition-all duration-300 gap-2",
+                selected ? "shadow-[0_0_20px_rgba(var(--color-accent-rgb),0.2)]" : "text-[var(--color-muted)] hover:text-[var(--color-cream)]"
+              )}
             >
-              <span style={{ marginRight: 4, fontSize: 11 }}>{item.icon}</span>
+              <item.icon className={cn("w-3.5 h-3.5", selected ? "text-[var(--color-accent)]" : "text-[var(--color-muted)]")} />
               {item.label}
-              <span className="tab-count">{count}</span>
-            </button>
+              <Badge variant="outline" className={cn(
+                "ml-1 font-mono text-[10px] px-1.5 py-0 border-white/10",
+                selected ? "bg-white/10 text-white" : "text-[var(--color-muted)]"
+              )}>
+                {count}
+              </Badge>
+            </Button>
           );
         })}
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 12,
-          marginBottom: 20,
-        }}
-      >
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
-          { label: "Impressions", value: totals.impressions, accent: "var(--color-accent)", icon: "👁" },
-          { label: "Likes", value: totals.likes, accent: "var(--color-success)", icon: "♥" },
-          { label: "Reposts", value: totals.reposts, accent: "var(--color-amber)", icon: "↻" },
-          { label: "Replies", value: totals.replies, accent: "var(--color-muted)", icon: "💬" },
+          { label: "Gross Impressions", value: totals.impressions, accent: "var(--color-accent)", icon: BarChart3, desc: "Total eyeballs reached" },
+          { label: "Community Love", value: totals.likes, accent: "var(--color-success)", icon: Zap, desc: "Total positive reactions" },
+          { label: "Viral Velocity", value: totals.reposts, accent: "var(--color-amber)", icon: Repeat, desc: "Circulation via re-shares" },
+          { label: "Engagement Hub", value: totals.replies, accent: "var(--color-muted)", icon: Share2, desc: "Conversational interactions" },
         ].map((item, i) => (
-          <div key={item.label} className="analytics-metric-card">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-muted)", fontFamily: "var(--font-mono)" }}>{item.label}</div>
-              <span style={{ fontSize: 16, opacity: 0.5 }}>{item.icon}</span>
-            </div>
-            <div className="metric-value" style={{ marginTop: 8, color: "var(--color-cream)", fontSize: 26, fontFamily: "var(--font-mono)", fontWeight: 700, animationDelay: `${i * 0.08}s` }}>{fmtBig(item.value)}</div>
-            <div style={{ marginTop: 10, height: 3, borderRadius: 999, background: `linear-gradient(90deg, ${item.accent}, transparent)`, opacity: 0.5 }} />
-          </div>
+          <Card key={item.label} className="bg-gradient-to-br from-[var(--color-elevated)] to-[var(--color-ink)] border-white/[0.03] shadow-xl overflow-hidden group">
+            <CardContent className="p-5 space-y-4">
+              <div className="flex items-start justify-between">
+                <div className="p-2.5 rounded-xl bg-white/5 text-[var(--color-muted)] group-hover:bg-[var(--color-accent)]/10 group-hover:text-[var(--color-accent)] transition-colors duration-500">
+                  <item.icon className="w-5 h-5" />
+                </div>
+                <div className="flex flex-col items-end">
+                   <Badge variant="outline" className="text-[9px] font-black uppercase tracking-widest border-white/5 opacity-50">Global Stats</Badge>
+                </div>
+              </div>
+              
+              <div className="space-y-1">
+                <div className="text-3xl font-black text-[var(--color-cream)] font-mono tracking-tighter group-hover:translate-x-1 transition-transform duration-500">
+                  {fmtBig(item.value)}
+                </div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--color-muted)] flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: item.accent }}></span>
+                  {item.label}
+                </div>
+              </div>
+
+              <div className="pt-2 text-[9px] text-[var(--color-muted)] font-medium italic opacity-40 group-hover:opacity-60 transition-opacity">
+                {item.desc}
+              </div>
+            </CardContent>
+          </Card>
         ))}
       </div>
 
@@ -1121,36 +1161,15 @@ function PostDetailModal({
 }) {
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
   const latest = analytics[analytics.length - 1] ?? null;
   const metricsSeries = analytics.map((item) => item.impressions);
   const isPublished = !!post && post.status === "published" && !post.is_deleted;
-  const isScheduled = !!post && post.status === "scheduled" && !post.is_deleted;
   const hasActiveRepost = !!post?.reposted_at;
-
-  useEffect(() => {
-    setActiveMediaIndex(0);
-  }, [post?.id]);
-
-  const postMedia = post?.media ?? [];
-  const activeMedia = postMedia[activeMediaIndex] ?? null;
-
-  const mediaSource = (media: PostMedia | null): string | null => {
-    if (!media) return null;
-    return mediaUrls[media.key] ?? media.public_url ?? null;
-  };
 
   const trendPath = (() => {
     if (metricsSeries.length < 2) return "";
     const width = 300;
-    const height = 70;
+    const height = 60;
     const max = Math.max(...metricsSeries, 1);
     const min = Math.min(...metricsSeries, 0);
     const range = Math.max(max - min, 1);
@@ -1163,274 +1182,156 @@ function PostDetailModal({
       .join(" ");
   })();
 
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 85,
-        background: "rgba(2, 6, 14, 0.75)",
-        backdropFilter: "blur(8px)",
-        display: "grid",
-        placeItems: "center",
-        padding: 20,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "min(980px, 100%)",
-          maxHeight: "88vh",
-          overflowY: "auto",
-          borderRadius: 18,
-          border: "1px solid var(--color-border)",
-          background: "linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 92%, #000), var(--color-surface))",
-          padding: 16,
-          boxShadow: "0 25px 90px rgba(0,0,0,0.5)",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <h3 style={{ margin: 0, color: "var(--color-cream)", fontFamily: "var(--font-sans)", fontSize: 28 }}>Post Details</h3>
-          <button onClick={onClose} style={{ border: "none", background: "transparent", color: "var(--color-cream)", fontSize: 28, lineHeight: 1 }}>×</button>
-        </div>
-
-        {loading && (
-          <p style={{ color: "var(--color-muted)", fontFamily: "var(--font-mono)", fontSize: 13 }}>Loading post details...</p>
-        )}
-
-        {error && (
-          <p style={{ color: "var(--color-danger)", fontFamily: "var(--font-mono)", fontSize: 13 }}>{error}</p>
-        )}
-
-        {post && (
-          <>
-            <div style={{ border: "1px solid var(--color-border)", borderRadius: 14, padding: 14, background: "color-mix(in srgb, var(--color-ink) 18%, transparent)" }}>
-              <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
-                <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--color-muted)", textTransform: "uppercase" }}>
-                  {post.status}
-                </span>
-                {post.scheduled_for && (
-                  <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--color-accent)" }}>
-                    Scheduled {fmtDateTime(post.scheduled_for)}
-                  </span>
-                )}
-                {post.published_at && (
-                  <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--color-success)" }}>
-                    Published {fmtDateTime(post.published_at)}
-                  </span>
-                )}
-              </div>
-
-              <p style={{ margin: 0, color: "var(--color-cream)", fontSize: 22, lineHeight: 1.3, fontFamily: "var(--font-sans)", whiteSpace: "pre-wrap" }}>
-                {post.content}
-              </p>
-
-              {quoteSourcePost && (
-                <div
-                  style={{
-                    marginTop: 12,
-                    borderRadius: 12,
-                    border: "1px solid color-mix(in srgb, var(--color-accent) 35%, var(--color-border))",
-                    background: "color-mix(in srgb, var(--color-ink) 28%, transparent)",
-                    padding: 12,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 10,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.08em",
-                      color: "var(--color-accent)",
-                      fontFamily: "var(--font-mono)",
-                      marginBottom: 6,
-                    }}
-                  >
-                    Original post
-                  </div>
-                  <p
-                    style={{
-                      margin: 0,
-                      color: "var(--color-cream)",
-                      fontSize: 16,
-                      lineHeight: 1.35,
-                      fontFamily: "var(--font-sans)",
-                      whiteSpace: "pre-wrap",
-                    }}
-                  >
-                    {quoteSourcePost.content}
-                  </p>
-                </div>
-              )}
-
-              {!!post.media?.length && (
-                <div style={{ marginTop: 12 }}>
-                  {activeMedia && (
-                    <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid var(--color-border)", background: "#000", position: "relative" }}>
-                      {activeMedia.content_type?.startsWith("video/") ? (
-                        <video controls src={mediaSource(activeMedia) ?? undefined} style={{ width: "100%", maxHeight: 420, objectFit: "contain" }} />
-                      ) : (
-                        <img src={mediaSource(activeMedia) ?? undefined} alt={activeMedia.file_name ?? "Post media"} style={{ width: "100%", maxHeight: 420, objectFit: "contain" }} />
-                      )}
-
-                      {postMedia.length > 1 && (
-                        <>
-                          <button
-                            onClick={() => setActiveMediaIndex((i) => (i - 1 + postMedia.length) % postMedia.length)}
-                            style={{
-                              position: "absolute",
-                              top: "50%",
-                              left: 8,
-                              transform: "translateY(-50%)",
-                              border: "1px solid var(--color-border)",
-                              background: "rgba(9,13,22,0.7)",
-                              color: "var(--color-cream)",
-                              width: 34,
-                              height: 34,
-                              borderRadius: 999,
-                              fontSize: 20,
-                              lineHeight: 1,
-                            }}
-                          >
-                            ‹
-                          </button>
-                          <button
-                            onClick={() => setActiveMediaIndex((i) => (i + 1) % postMedia.length)}
-                            style={{
-                              position: "absolute",
-                              top: "50%",
-                              right: 8,
-                              transform: "translateY(-50%)",
-                              border: "1px solid var(--color-border)",
-                              background: "rgba(9,13,22,0.7)",
-                              color: "var(--color-cream)",
-                              width: 34,
-                              height: 34,
-                              borderRadius: 999,
-                              fontSize: 20,
-                              lineHeight: 1,
-                            }}
-                          >
-                            ›
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  )}
-
-                  {postMedia.length > 1 && (
-                    <div style={{ marginTop: 8, display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
-                      {postMedia.map((item, idx) => (
-                        <button
-                          key={`${item.key}-${idx}`}
-                          onClick={() => setActiveMediaIndex(idx)}
-                          style={{
-                            borderRadius: 8,
-                            border: idx === activeMediaIndex ? "1px solid var(--color-accent)" : "1px solid var(--color-border)",
-                            background: "transparent",
-                            color: "var(--color-muted)",
-                            fontFamily: "var(--font-mono)",
-                            fontSize: 11,
-                            padding: "4px 8px",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {item.type} {idx + 1}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {isPublished && (
-              <div style={{ marginTop: 12, border: "1px solid var(--color-border)", borderRadius: 14, padding: 12, background: "color-mix(in srgb, var(--color-elevated) 90%, transparent)" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 10 }}>
-                  {[
-                    { label: "Impressions", value: latest?.impressions ?? 0 },
-                    { label: "Likes", value: latest?.likes ?? 0 },
-                    { label: "Reposts", value: latest?.retweets ?? 0 },
-                    { label: "Replies", value: latest?.replies ?? 0 },
-                    { label: "Quoted", value: latest?.quoted_count ?? 0 },
-                    { label: "Bookmarks", value: latest?.bookmarks ?? 0 },
-                  ].map((metric) => (
-                    <div key={metric.label} style={{ border: "1px solid var(--color-border)", borderRadius: 10, padding: "8px 10px", background: "color-mix(in srgb, var(--color-ink) 18%, transparent)" }}>
-                      <div style={{ fontSize: 10, color: "var(--color-muted)", fontFamily: "var(--font-mono)", textTransform: "uppercase" }}>{metric.label}</div>
-                      <div style={{ marginTop: 4, fontSize: 21, color: "var(--color-cream)", fontFamily: "var(--font-mono)", fontWeight: 700 }}>{fmtBig(metric.value)}</div>
-                    </div>
-                  ))}
-                </div>
-                {metricsSeries.length > 1 && (
-                  <div style={{ marginTop: 12, border: "1px solid var(--color-border)", borderRadius: 10, padding: 10, background: "color-mix(in srgb, var(--color-ink) 18%, transparent)" }}>
-                    <div style={{ fontSize: 10, color: "var(--color-muted)", fontFamily: "var(--font-mono)", textTransform: "uppercase", marginBottom: 6 }}>
-                      Impression trend
-                    </div>
-                    <svg viewBox="0 0 300 70" style={{ width: "100%", height: 80 }}>
-                      <path d={trendPath} fill="none" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                  </div>
-                )}
-                <div style={{ marginTop: 8, fontSize: 11, color: "var(--color-muted)", fontFamily: "var(--font-mono)" }}>
-                  Last analytics snapshot: {latest ? fmtDateTime(latest.fetched_at) : "No snapshots yet"}
-                </div>
-              </div>
+  const actions = post && !post.is_deleted && (
+    <div className="flex items-center gap-2">
+      {isPublished && (
+        <>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onManualRefresh}
+            disabled={!!busy[`refresh:${post.id}`] || cooldown > 0}
+            className="rounded-xl font-bold gap-2 min-w-[120px]"
+          >
+            {busy[`refresh:${post.id}`] ? (
+              <RefreshCcw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Zap className="w-4 h-4" />
             )}
+            {cooldown > 0 ? `Wait ${cooldown}s` : "Scan Live"}
+          </Button>
 
-            <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
-              <button onClick={onRefresh} style={detailButtonStyle(false)}>Reload</button>
-              {isPublished && (
-                <button
-                  onClick={() => {
-                    if (cooldown > 0) return;
-                    onManualRefresh();
-                  }}
-                  disabled={!!busy[`refresh:${post.id}`] || cooldown > 0}
-                  style={{
-                    ...detailButtonStyle(!!busy[`refresh:${post.id}`] || cooldown > 0),
-                    opacity: cooldown > 0 ? 0.6 : 1,
-                    minWidth: 100,
-                  }}
-                >
-                  {busy[`refresh:${post.id}`] ? "Refreshing..." : cooldown > 0 ? `Wait ${cooldown}s` : "Refresh now"}
-                </button>
-              )}
-              {isPublished && (
-                <button onClick={onRepost} disabled={!!busy[`repost:${post.id}`]} style={detailButtonStyle(!!busy[`repost:${post.id}`])}>
-                  {busy[`repost:${post.id}`] ? (hasActiveRepost ? "Undoing..." : "Reposting...") : (hasActiveRepost ? "Undo repost" : "Repost")}
-                </button>
-              )}
-              {isPublished && (
-                <button onClick={onOpenQuote} disabled={!!busy[`quote:${post.id}`]} style={detailButtonStyle(!!busy[`quote:${post.id}`])}>
-                  {busy[`quote:${post.id}`] ? "Quoting..." : "Quote"}
-                </button>
-              )}
-              {isScheduled && (
-                <button onClick={onOpenEdit} disabled={!!busy[`edit:${post.id}`]} style={detailButtonStyle(!!busy[`edit:${post.id}`])}>
-                  Edit content
-                </button>
-              )}
-              {isScheduled && (
-                <button onClick={onOpenReschedule} disabled={!!busy[`reschedule:${post.id}`]} style={detailButtonStyle(!!busy[`reschedule:${post.id}`])}>
-                  Change time
-                </button>
-              )}
-              <button
-                onClick={onDelete}
-                disabled={post.is_deleted || !!busy[`delete:${post.id}`]}
-                style={{
-                  ...detailButtonStyle(post.is_deleted || !!busy[`delete:${post.id}`]),
-                  border: "1px solid color-mix(in srgb, var(--color-danger) 45%, transparent)",
-                  color: "var(--color-danger)",
-                }}
-              >
-                {busy[`delete:${post.id}`] ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onRepost}
+            disabled={!!busy[`repost:${post.id}`]}
+            className={cn(
+              "rounded-xl gap-2",
+              hasActiveRepost ? "text-[var(--color-success)] hover:bg-[var(--color-success)]/10" : ""
+            )}
+          >
+            <Repeat className="w-4 h-4" />
+            {hasActiveRepost ? "Reposted" : "Repost"}
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onOpenQuote}
+            className="rounded-xl gap-2 text-[var(--color-amber)] hover:bg-[var(--color-amber)]/10"
+          >
+            <QuoteIcon className="w-4 h-4" />
+            Quote
+          </Button>
+        </>
+      )}
+
+      {(post.status === "draft" || post.status === "scheduled") && (
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onOpenEdit}
+          className="rounded-xl gap-2"
+        >
+          <Edit2 className="w-4 h-4" />
+          Edit
+        </Button>
+      )}
+
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onDelete}
+        className="rounded-xl gap-2 text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 ml-auto"
+      >
+        <Trash2 className="w-4 h-4" />
+        Destroy
+      </Button>
     </div>
+  );
+
+  return (
+    <PostDetailsModal
+      isOpen
+      onClose={onClose}
+      loading={loading}
+      error={error}
+      post={post}
+      quoteSourceContent={quoteSourcePost?.content}
+      mediaUrls={mediaUrls}
+      activeMediaIndex={activeMediaIndex}
+      onActiveMediaIndexChange={setActiveMediaIndex}
+      actions={actions}
+      maxWidth="840px"
+    >
+      {isPublished && (
+        <div className="space-y-6 py-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-[var(--color-accent)]" />
+              <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--color-muted)]">Live Metrics Intel</h4>
+            </div>
+            <Button variant="ghost" size="sm" onClick={onRefresh} className="h-6 text-[9px] uppercase tracking-widest gap-1.5 opacity-50 hover:opacity-100">
+              <RefreshCcw className="w-3 h-3" /> Reload Cache
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+            {[
+              { label: "Impressions", value: latest?.impressions ?? 0, icon: BarChart3 },
+              { label: "Likes", value: latest?.likes ?? 0, icon: Zap },
+              { label: "Reposts", value: latest?.retweets ?? 0, icon: Repeat },
+              { label: "Replies", value: latest?.replies ?? 0, icon: Share2 },
+              { label: "Quoted", value: latest?.quoted_count ?? 0, icon: QuoteIcon },
+              { label: "Bookmarks", value: latest?.bookmarks ?? 0, icon: Share2 },
+            ].map((metric) => (
+              <Card key={metric.label} className="bg-[var(--color-ink)]/20 border-white/5 backdrop-blur-sm">
+                <CardContent className="p-3 space-y-2">
+                  <div className="flex items-center justify-between opacity-40">
+                    <span className="text-[8px] font-mono uppercase tracking-widest">{metric.label}</span>
+                    <metric.icon className="w-2.5 h-2.5" />
+                  </div>
+                  <div className="text-xl font-black text-[var(--color-cream)] font-mono tracking-tighter">
+                    {fmtBig(metric.value)}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {metricsSeries.length > 1 && (
+            <Card className="bg-[var(--color-ink)]/20 border-white/5">
+              <CardContent className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-[9px] font-mono uppercase tracking-[0.2em] text-[var(--color-muted)]">Impression Velocity</div>
+                  <div className="px-2 py-0.5 rounded-full bg-[var(--color-accent)]/10 text-[var(--color-accent)] text-[8px] font-black uppercase tracking-widest animate-pulse">
+                    Live Link Active
+                  </div>
+                </div>
+                <div className="relative h-20 w-full overflow-hidden">
+                  <svg viewBox="0 0 300 60" preserveAspectRatio="none" className="w-full h-full drop-shadow-[0_0_15px_rgba(139,151,255,0.3)]">
+                    <defs>
+                      <linearGradient id="grad-intel" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.25" />
+                        <stop offset="100%" stopColor="var(--color-accent)" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                    <path d={`${trendPath} L 300,60 L 0,60 Z`} fill="url(#grad-intel)" />
+                    <path d={trendPath} fill="none" stroke="var(--color-accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="flex items-center gap-2 pt-2 text-[10px] font-mono text-[var(--color-muted)] opacity-50">
+            <ClockIcon className="w-3 h-3" />
+            INTEL LAST SYNCED: {latest ? fmtDateTime(latest.fetched_at) : "NOT YET SCANNED"}
+          </div>
+        </div>
+      )}
+    </PostDetailsModal>
   );
 }
 
