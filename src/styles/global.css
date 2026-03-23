@@ -145,3 +145,147 @@
 .glow-effect {
   box-shadow: 0 0 80px -10px rgba(123, 97, 255, 0.3);
 }
+/* ── Analytics Module ── */
+.analytics-metric-card {
+  position: relative;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+.analytics-tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: color-mix(in srgb, var(--color-ink) 40%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 4px;
+}
+
+.analytics-tab {
+  position: relative;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: var(--color-muted);
+  padding: 10px 18px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease;
+  white-space: nowrap;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRow {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.analytics-action-menu {
+  position: absolute;
+  right: 0;
+  top: 44px;
+  z-index: 100;
+  width: 190px;
+  border-radius: 14px;
+  border: 1px solid var(--color-border);
+  background: var(--color-elevated);
+  padding: 8px;
+  display: grid;
+  gap: 4px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.65);
+  animation: countUp 0.15s ease-out both;
+}
+
+.analytics-action-menu--upward {
+  top: auto;
+  bottom: 44px;
+  animation-name: countDown;
+}
+
+@keyframes countDown {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.analytics-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-cream);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.analytics-action-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+.analytics-action-btn--danger {
+  color: var(--color-danger);
+}
+
+/* ── Status Chips ── */
+.post-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.post-status-badge--published {
+  color: var(--color-success);
+  border: 1px solid color-mix(in srgb, var(--color-success) 40%, transparent);
+  background: color-mix(in srgb, var(--color-success) 8%, transparent);
+}
+
+.post-status-badge--scheduled {
+  color: var(--color-accent);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+}
+
+.post-status-badge--draft {
+  color: var(--color-amber);
+  border: 1px solid color-mix(in srgb, var(--color-amber) 40%, transparent);
+  background: color-mix(in srgb, var(--color-amber) 8%, transparent);
+}
+
+.post-status-badge--deleted {
+  color: var(--color-danger);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 40%, transparent);
+  background: color-mix(in srgb, var(--color-danger) 8%, transparent);
+}
+
+/* ── Standardize transition persistence ── */
+[transition\:persist] {
+  overflow: visible !important;
+}

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
-import "../styles/analytics.css";
 import type {
   DownloadUrlResponse,
   Post,
@@ -114,6 +113,7 @@ export default function AnalyticsDashboard() {
   const [busy, setBusy] = useState<BusyState>({});
   const [activeFilter, setActiveFilter] = useState<AnalyticsFilter>("published");
   const [activeMenuPostId, setActiveMenuPostId] = useState<string | null>(null);
+  const [menuOpenUpward, setMenuOpenUpward] = useState(false);
 
   useEffect(() => {
     if (!activeMenuPostId) return;
@@ -609,7 +609,39 @@ export default function AnalyticsDashboard() {
       )}
 
 
-      <div className="flex flex-wrap items-center gap-2 mb-8 p-1.5 bg-[#0A0E14]/60 backdrop-blur-md rounded-2xl border border-white/5 w-fit">
+      {/* 4 Metrics Cards - Rearranged to be first and smaller */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        {[
+          { label: "Impressions", value: totals.impressions, accent: "var(--color-accent)", icon: BarChart3 },
+          { label: "Community", value: totals.likes, accent: "var(--color-success)", icon: Zap },
+          { label: "Circulation", value: totals.reposts, accent: "var(--color-amber)", icon: Repeat },
+          { label: "Engagement", value: totals.replies, accent: "var(--color-muted)", icon: Share2 },
+        ].map((item, i) => (
+          <Card key={item.label} className="bg-gradient-to-br from-[var(--color-elevated)] to-[var(--color-ink)] border-white/[0.02] shadow-lg overflow-hidden group">
+            <CardContent className="p-3.5 space-y-2.5">
+              <div className="flex items-start justify-between">
+                <div className="p-1.5 rounded-lg bg-white/5 text-[var(--color-muted)] group-hover:bg-[var(--color-accent)]/10 group-hover:text-[var(--color-accent)] transition-colors duration-500">
+                  <item.icon className="w-4 h-4" />
+                </div>
+                <Badge variant="outline" className="text-[7px] font-black uppercase tracking-widest border-white/5 opacity-30 px-1 py-0 h-3">Global</Badge>
+              </div>
+              
+              <div className="space-y-0.5">
+                <div className="text-xl font-black text-[var(--color-cream)] font-mono tracking-tighter group-hover:translate-x-0.5 transition-transform duration-500">
+                  {fmtBig(item.value)}
+                </div>
+                <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-[var(--color-muted)] flex items-center gap-1.5">
+                  <span className="w-1 h-1 rounded-full" style={{ backgroundColor: item.accent }}></span>
+                  {item.label}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Filter Tabs - Now below metrics */}
+      <div className="flex flex-wrap items-center gap-2 mb-8 p-1.5 bg-[#0A0E14]/40 backdrop-blur-md rounded-2xl border border-white/5 w-fit">
         {[
           { key: "published", label: "Published", icon: CheckCircle2 },
           { key: "scheduled", label: "Scheduled", icon: ClockIcon },
@@ -626,15 +658,15 @@ export default function AnalyticsDashboard() {
               size="sm"
               onClick={() => setActiveFilter(item.key as AnalyticsFilter)}
               className={cn(
-                "rounded-xl h-9 px-4 font-bold transition-all duration-300 gap-2",
-                selected ? "shadow-[0_0_20px_rgba(var(--color-accent-rgb),0.2)]" : "text-[var(--color-muted)] hover:text-[var(--color-cream)]"
+                "rounded-xl h-8 px-3.5 text-xs font-bold transition-all duration-300 gap-2",
+                selected ? "shadow-[0_0_20px_rgba(var(--color-accent-rgb),0.15)] bg-[var(--color-elevated)]" : "text-[var(--color-muted)] hover:text-[var(--color-cream)]"
               )}
             >
-              <item.icon className={cn("w-3.5 h-3.5", selected ? "text-[var(--color-accent)]" : "text-[var(--color-muted)]")} />
+              <item.icon className={cn("w-3 h-3", selected ? "text-[var(--color-accent)]" : "text-[var(--color-muted)]")} />
               {item.label}
               <Badge variant="outline" className={cn(
-                "ml-1 font-mono text-[10px] px-1.5 py-0 border-white/10",
-                selected ? "bg-white/10 text-white" : "text-[var(--color-muted)]"
+                "ml-1 font-mono text-[9px] px-1 py-0 border-white/5",
+                selected ? "bg-white/5 text-white" : "text-[var(--color-muted)] opacity-50"
               )}>
                 {count}
               </Badge>
@@ -643,43 +675,9 @@ export default function AnalyticsDashboard() {
         })}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {[
-          { label: "Gross Impressions", value: totals.impressions, accent: "var(--color-accent)", icon: BarChart3, desc: "Total eyeballs reached" },
-          { label: "Community Love", value: totals.likes, accent: "var(--color-success)", icon: Zap, desc: "Total positive reactions" },
-          { label: "Viral Velocity", value: totals.reposts, accent: "var(--color-amber)", icon: Repeat, desc: "Circulation via re-shares" },
-          { label: "Engagement Hub", value: totals.replies, accent: "var(--color-muted)", icon: Share2, desc: "Conversational interactions" },
-        ].map((item, i) => (
-          <Card key={item.label} className="bg-gradient-to-br from-[var(--color-elevated)] to-[var(--color-ink)] border-white/[0.03] shadow-xl overflow-hidden group">
-            <CardContent className="p-5 space-y-4">
-              <div className="flex items-start justify-between">
-                <div className="p-2.5 rounded-xl bg-white/5 text-[var(--color-muted)] group-hover:bg-[var(--color-accent)]/10 group-hover:text-[var(--color-accent)] transition-colors duration-500">
-                  <item.icon className="w-5 h-5" />
-                </div>
-                <div className="flex flex-col items-end">
-                   <Badge variant="outline" className="text-[9px] font-black uppercase tracking-widest border-white/5 opacity-50">Global Stats</Badge>
-                </div>
-              </div>
-              
-              <div className="space-y-1">
-                <div className="text-3xl font-black text-[var(--color-cream)] font-mono tracking-tighter group-hover:translate-x-1 transition-transform duration-500">
-                  {fmtBig(item.value)}
-                </div>
-                <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--color-muted)] flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: item.accent }}></span>
-                  {item.label}
-                </div>
-              </div>
 
-              <div className="pt-2 text-[9px] text-[var(--color-muted)] font-medium italic opacity-40 group-hover:opacity-60 transition-opacity">
-                {item.desc}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1 pb-32">
 
       {loading && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: 48 }}>
@@ -712,7 +710,7 @@ export default function AnalyticsDashboard() {
             borderRadius: 20,
             background:
               "linear-gradient(180deg, color-mix(in srgb, var(--color-accent) 4%, var(--color-elevated)) 0%, var(--color-elevated) 100%)",
-            overflow: "hidden",
+            overflow: "visible",
           }}
         >
           <div
@@ -763,7 +761,10 @@ export default function AnalyticsDashboard() {
             return (
               <div
                 key={row.post_id}
-                className="analytics-post-card"
+                className={cn(
+                  "grid items-center hover:bg-[var(--color-accent)]/[0.03] transition-colors cursor-pointer",
+                  idx !== filteredRows.length - 1 && "border-b border-white/[0.04]"
+                )}
                 onClick={() => {
                   if (row.status === "draft" && !row.is_deleted) {
                     window.location.href = `/compose?draft_post_id=${encodeURIComponent(row.post_id)}`;
@@ -778,6 +779,9 @@ export default function AnalyticsDashboard() {
                   animationDelay: `${idx * 0.04}s`,
                   zIndex: activeMenuPostId === row.post_id ? 50 : 1,
                   position: "relative",
+                  animationName: "slideInRow",
+                  animationDuration: "0.3s",
+                  animationFillMode: "both"
                 }}
               >
                 <div style={{ display: "flex", gap: 12, minWidth: 0, alignItems: "center" }}>
@@ -909,7 +913,14 @@ export default function AnalyticsDashboard() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      setActiveMenuPostId((current) => (current === row.post_id ? null : row.post_id));
+                      if (activeMenuPostId === row.post_id) {
+                        setActiveMenuPostId(null);
+                      } else {
+                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        const spaceBelow = window.innerHeight - rect.bottom;
+                        setMenuOpenUpward(spaceBelow < 250);
+                        setActiveMenuPostId(row.post_id);
+                      }
                     }}
                     style={{
                       width: 38,
@@ -932,7 +943,7 @@ export default function AnalyticsDashboard() {
                   {activeMenuPostId === row.post_id && (
                     <div
                       onClick={(e) => e.stopPropagation()}
-                      className="analytics-action-menu"
+                      className={`analytics-action-menu${menuOpenUpward ? " analytics-action-menu--upward" : ""}`}
                     >
                       {canPublishedAction(row) && (
                         <button
@@ -944,9 +955,10 @@ export default function AnalyticsDashboard() {
                           }}
                           disabled={busyRefresh || !!cooldowns[row.post_id]}
                           className="analytics-action-btn"
-                          style={{ opacity: cooldowns[row.post_id] ? 0.6 : 1 }}
+                          style={{ opacity: cooldowns[row.post_id] ? 0.6 : 1, whiteSpace: "nowrap" }}
                         >
-                          {busyRefresh ? "Refreshing..." : cooldowns[row.post_id] ? `↻ Wait ${cooldowns[row.post_id]}s` : "↻ Refresh now"}
+                          <RefreshCcw size={14} className={cn("flex-shrink-0", busyRefresh && "animate-spin")} />
+                          <span>{busyRefresh ? "Reloading..." : cooldowns[row.post_id] ? `Wait ${cooldowns[row.post_id]}s` : "Reload"}</span>
                         </button>
                       )}
                       {canPublishedAction(row) && (
@@ -958,8 +970,10 @@ export default function AnalyticsDashboard() {
                           }}
                           disabled={busyRepost}
                           className="analytics-action-btn"
+                          style={{ whiteSpace: "nowrap" }}
                         >
-                          {busyRepost ? (row.has_repost_action ? "Undoing..." : "Reposting...") : (row.has_repost_action ? "↺ Undo repost" : "↻ Repost")}
+                          <Repeat size={14} className={cn("flex-shrink-0", busyRepost && "animate-pulse")} />
+                          <span>{busyRepost ? (row.has_repost_action ? "Undoing..." : "Reposting...") : (row.has_repost_action ? "Undo repost" : "Repost")}</span>
                         </button>
                       )}
                       {canPublishedAction(row) && (
@@ -972,8 +986,10 @@ export default function AnalyticsDashboard() {
                           }}
                           disabled={busyQuote}
                           className="analytics-action-btn"
+                          style={{ whiteSpace: "nowrap" }}
                         >
-                          {busyQuote ? "Quoting..." : "💬 Quote"}
+                          <QuoteIcon size={14} className="flex-shrink-0" />
+                          <span>{busyQuote ? "Quoting..." : "Quote"}</span>
                         </button>
                       )}
                       {canScheduledCrud(row) && (
@@ -985,8 +1001,10 @@ export default function AnalyticsDashboard() {
                           }}
                           disabled={busyEdit}
                           className="analytics-action-btn"
+                          style={{ whiteSpace: "nowrap" }}
                         >
-                          {busyEdit ? "Saving..." : "✎ Edit content"}
+                          <Edit2 size={14} className="flex-shrink-0" />
+                          <span>{busyEdit ? "Saving..." : "Edit content"}</span>
                         </button>
                       )}
                       {canScheduledCrud(row) && (
@@ -998,8 +1016,10 @@ export default function AnalyticsDashboard() {
                           }}
                           disabled={busyReschedule}
                           className="analytics-action-btn"
+                          style={{ whiteSpace: "nowrap" }}
                         >
-                          {busyReschedule ? "Saving..." : "◷ Change time"}
+                          <ClockIcon size={14} className="flex-shrink-0" />
+                          <span>{busyReschedule ? "Saving..." : "Change time"}</span>
                         </button>
                       )}
                       <button
@@ -1011,8 +1031,10 @@ export default function AnalyticsDashboard() {
                         }}
                         disabled={row.is_deleted || busyDelete}
                         className="analytics-action-btn analytics-action-btn--danger"
+                        style={{ whiteSpace: "nowrap" }}
                       >
-                        {busyDelete ? "Deleting..." : "✕ Delete"}
+                        <Trash2 size={14} className="flex-shrink-0" />
+                        <span>{busyDelete ? "Deleting..." : "Delete"}</span>
                       </button>
                     </div>
                   )}
@@ -1193,12 +1215,12 @@ function PostDetailModal({
             disabled={!!busy[`refresh:${post.id}`] || cooldown > 0}
             className="rounded-xl font-bold gap-2 min-w-[120px]"
           >
-            {busy[`refresh:${post.id}`] ? (
+             {busy[`refresh:${post.id}`] ? (
               <RefreshCcw className="w-4 h-4 animate-spin" />
             ) : (
-              <Zap className="w-4 h-4" />
+              <RefreshCcw className="w-4 h-4" />
             )}
-            {cooldown > 0 ? `Wait ${cooldown}s` : "Scan Live"}
+            {cooldown > 0 ? `Wait ${cooldown}s` : "Reload"}
           </Button>
 
           <Button
@@ -1246,7 +1268,7 @@ function PostDetailModal({
         className="rounded-xl gap-2 text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 ml-auto"
       >
         <Trash2 className="w-4 h-4" />
-        Destroy
+        Delete
       </Button>
     </div>
   );
